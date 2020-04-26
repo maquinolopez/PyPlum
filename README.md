@@ -28,19 +28,19 @@ Core data should be in a **csv** file with the following format:
 - **Depth:**        
 	Lower depth of sample
 - **Density:**      
-	Density of sample ($\frac{g}{cm^3}$)
+	Density of sample (g/cm^3)
 - **Total 210Pb:**   
-	Total 210Pb measurements ($\frac{Bq}{kg}$)
+	Total 210Pb measurements (Bq/kg)
 - **SD Total 210Pb:**
 	Standard deviation of Total 210Pb measurements
 - **Thickness:**
 	Samples thickness (upper - lower depth)
 - **Total 226Ra:**
-	Total 226Ra measurements ($\frac{Bq}{kg}$)
+	Total 226Ra measurements (Bq/kg)
 - **SD Total 226Ra:**
 	Standard deviation of Total 226Ra measurements
 - **Info:**		  
-	Core's information: $1^{st}$ cell should contain sampling date and $2^{nd}$ cell can contain the number of samples to be used for only supported activity.  
+	Core's information: First cell should contain sampling date and second cell can contain the number of samples to be used for only supported activity.  
 
 This file (_Core\_name.csv_) should be inside a folder named with the same Core name. This Core folder should be in the folder where _PyPlum.py_ and _Calibration Curves_ folder are.
 
