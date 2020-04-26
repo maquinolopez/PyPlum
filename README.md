@@ -16,7 +16,7 @@ This code can be used as a Python module by putting the file in the core directo
 
 File PyPlum.py should be place in the folder where Cores and Calibration curves are located and python working directory has to be this same folder.
 
-# File structure
+## File structure
 Core data should be in a **csv** file with the following format:
 
 |  ID  | Depth |   Density   | Total 210Pb | SD Total 210Pb | Thickness | Total 226Ra |  SD Total 226Ra | Info |
@@ -28,7 +28,7 @@ Core data should be in a **csv** file with the following format:
 - **Depth:**        
 	Lower depth of sample
 - **Density:**      
-	Density of sample ($\frac{g}{cm^3}$) 
+	Density of sample ($\frac{g}{cm^3}$)
 - **Total 210Pb:**   
 	Total 210Pb measurements ($\frac{Bq}{kg}$)
 - **SD Total 210Pb:**
@@ -42,27 +42,27 @@ Core data should be in a **csv** file with the following format:
 - **Info:**		  
 	Core's information: $1^{st}$ cell should contain sampling date and $2^{nd}$ cell can contain the number of samples to be used for only supported activity.  
 
-This file (_Core\_name.csv_) should be inside a folder named with the same Core name. This Core folder should be in the folder where _PyPlum.py_ and _Calibration Curves_ folder are. 
+This file (_Core\_name.csv_) should be inside a folder named with the same Core name. This Core folder should be in the folder where _PyPlum.py_ and _Calibration Curves_ folder are.
 
 If radiocarbon or calendar years are available, add a file with the same name as the Core file but adding _\-C_ such that you have a file named _Core\_name\-C.csv_. This file should have the following format:
 
-|  ID  | BP Age | Age error | Depth |  cc  | 
+|  ID  | BP Age | Age error | Depth |  cc  |
 | :--- | :----- | :-------- | :---- | :--- |
 
 - **ID:**         
 	Sample's ID
 - **BP Age:**			
 	Sample's age on **Before Present** format
-- **Age error:**	
+- **Age error:**
 	Standar deviation of sample's age
 - **Depth:**
 	Sample's depth
 - **cc:** Calibration curve
-	0. Calendar dates 
+	0. Calendar dates
 	1. IntCal13.14C
-	2. Marine13.14C	
+	2. Marine13.14C
 
-Plum will automatically identify the presence of the _Core\_name\-C.csv_ and run the appropriate model. 
+Plum will automatically identify the presence of the _Core\_name\-C.csv_ and run the appropriate model.
 
 ## Running instructions:
 
@@ -86,7 +86,7 @@ This will run the _PyPlum_ using default settings.
 
 - **Core:**  Core name
 - **dirt:**  Core folder location
-- **Dircc:**  Calibration curve folder 
+- **Dircc:**  Calibration curve folder
 - **thick:**  length of the autoregressive gamma process sections
 - **n_supp:**  Number samples to be used exclusively for inferring  supported 210Pb
 - **mean_m:**  Prior mean of memory parameter (used by the autoregressive gamma process)
@@ -108,22 +108,3 @@ This will run the _PyPlum_ using default settings.
 - **g_thi:**  Size of radiocarbon globes in plot
 - **Al:**			Detection limit, this variable limits the chronology (_see: Aquino-López et al. 2018 for details)_
 - **seed:**  Seed for the random variables (used to replicate results). If not changed random seed will be used.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
