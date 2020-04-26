@@ -57,7 +57,7 @@ If radiocarbon or calendar years are available, add a file with the same name as
 	Standar deviation of sample's age
 - **Depth:**
 	Sample's depth
-- **cc:** Calibration curve: 0. Calendar dates, 1. IntCal13.14C, 2. Marine13.14C
+- **cc:** Calibration curve: 0. Calendar dates, 1. IntCal13.14C, 2. Marine13.14C, 3. SHCal13.14C
 
 Plum will automatically identify the presence of the _Core\_name\-C.csv_ and run the appropriate model.
 
