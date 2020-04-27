@@ -533,6 +533,7 @@ class Plum:
             plt     = Chronology.plot(self.breaks,ys, color='black',alpha = .02)
             yrs_it  = r_[yrs_it,[ys] ]
         yrs_it      = sort(yrs_it[1:,:],axis=0)
+        self.ages   =   yrs_it
         # mean and interval
         Chronology.plot(self.breaks,mean(yrs_it,axis=0), linestyle='dashed',c='red',alpha = .9)
         Chronology.plot(self.breaks,yrs_it[int(self.intv * self.iterations) ], linestyle='dashed',c='red',alpha = .9)
@@ -567,10 +568,6 @@ class Plum:
         #Chronology.set_title(self.Core)
         string_vals = "{}".format(self.Core)
         Chronology.text(.05,.95, string_vals,transform = Chronology.transAxes,size = 20 )
-
-        #Save intervals
-        ages        = array([self.breaks, yrs_it[int(self.intv*self.iterations)],yrs_it[int((1-self.intv)*self.iterations)],mean(yrs_it,axis=0),median(yrs_it,axis=0)] )
-        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "ages_{}_{}.txt".format(self.Core, self.m), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
 
         # Energy Plot
         Energy.plot(-self.Output[1:,-1],c='gray',lw=.5,alpha=.8)
@@ -661,6 +658,14 @@ class Plum:
             show(fig)
         #plot the reservoir effect if chossen
 
+    def generate_age_file(self):
+        depths      = array(arange(self.breaks[0],self.breaks[-1],self.d_by) )
+        low         = interp(depths,self.breaks,self.ages[int(self.intv*self.iterations)])
+        hig         = interp(depths,self.breaks,self.ages[int((1-self.intv)*self.iterations)])
+        mean1       = interp(depths,self.breaks,mean(self.ages,axis=0))
+        median1     = interp(depths,self.breaks,median(self.ages,axis=0))
+        ages        = array([depths,low ,hig,mean1,median1])
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "ages_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
 
 
     def runPlum(self):
@@ -717,7 +722,10 @@ class Plum:
             if self.lead_data:
                 self.outplum    = Output[:,self.m+2:]
                 savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Plum.out", self.outplum[:,:-1], delimiter=',',fmt='%1.3f')
+        #generate and save plot
         self.PlumPlot()
+        #Save interval file
+        self.generate_age_file()
 
 
 
