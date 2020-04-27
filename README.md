@@ -105,3 +105,4 @@ This will run the _PyPlum_ using default settings.
 - **g_thi:**  Size of radiocarbon globes in plot
 - **Al:**			Detection limit, this variable limits the chronology (_see: Aquino-López et al. 2018 for details)_
 - **seed:**  Seed for the random variables (used to replicate results). If not changed random seed will be used.
+- **d_by:**  Length of sections used to create age file.
