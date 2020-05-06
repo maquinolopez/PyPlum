@@ -325,7 +325,7 @@ class Plum:
         x0_1        = uniform.rvs(size=1, loc=1950-self.Sdate-.0001, scale=.0002)
         m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)#uniform.rvs(size=self.m, loc=0, scale=15)
         w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)#uniform.rvs(size=1, loc=.2, scale=.3)
-        r_ini       = uniform.rvs(size=1, loc=0, scale=10)
+        r_ini       = uniform.rvs(size=1, loc=-100, scale=100)
         #parameters order fi and supported
         if self.lead_data:
             fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
@@ -454,14 +454,14 @@ class Plum:
         dat     = self.times(self.data[:, 2])
         inc     = self.incallookup(dat)
         sigm    = inc[1,:]**2 + self.data[:, 1]**2
-        u       = array(( (7./2.) * log(4. + ((array(self.data[:, 0]) + self.r_effect - inc[0,])**2.)/(2.*sigm)) + .5 * log(sigm) ) ).sum()
+        u       = array(( (7./2.) * log(4. + ((array(self.data[:, 0]) - self.r_effect - inc[0,])**2.)/(2.*sigm)) + .5 * log(sigm) ) ).sum()
         return u
 
     def UxN(self):
         dat     = self.times(self.data[:, 2])
         inc     = self.incallookup(dat)
         sigm    = inc[1,:]**2+self.data[:, 1]**2
-        u       = array((((self.data[:, 0] + self.r_effect - inc[0,])**2.)/((2.*sigm))) + .5*log(sigm)).sum() #
+        u       = array((((self.data[:, 0] - self.r_effect - inc[0,])**2.)/((2.*sigm))) + .5*log(sigm)).sum() #
         return u
     # calendar dates
     def Ucs(self):
@@ -714,7 +714,7 @@ class Plum:
         self.accpt_rt       = k/k0
         if self.reservoir_eff:
             self.outreser   = Output[:,self.m+2]
-            savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Reservour.out", Output[:,self.m+2], delimiter=',',fmt='%1.3f')
+            savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Reservour.out", self.outreser, delimiter=',',fmt='%1.3f')
             if self.lead_data:
                 self.outplum    = Output[:,self.m+3:]
                 savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Plum.out", self.outplum[:,:-1], delimiter=',',fmt='%1.3f')

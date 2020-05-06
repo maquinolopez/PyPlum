@@ -3,6 +3,10 @@ This is the python implementation of Plum. It creates age-depth models using 210
 
 **cite: https://doi.org/10.1007/s13253-018-0328-7**
 
+```diff
+- this is the Python version of Plum, for the official R version see rplum.
+```
+
 ## Requirements:
 - Python3
 - Numpy
@@ -106,3 +110,15 @@ This will run the _PyPlum_ using default settings.
 - **Al:**			Detection limit, this variable limits the chronology (_see: Aquino-López et al. 2018 for details)_
 - **seed:**  Seed for the random variables (used to replicate results). If not changed random seed will be used.
 - **d_by:**  Length of sections used to create age file.
+
+
+
+## rplum, R's official version
+
+rplum has being accepted into CRAN (the R reposatories). For downloading this version use
+
+`install.packages('rplum')`
+
+`library(rplum)`
+
+`Plum()`
