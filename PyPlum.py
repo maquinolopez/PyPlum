@@ -38,7 +38,7 @@ import os.path
 from time import strftime
 
 class Plum:
-    def __init__(self,Core='LL14',dirt="/Documents/PyPlum/",Dircc="/Documents/PyPlum/Calibration Curves/",
+    def __init__(self,Core='HP1C',dirt="/Documents/PyPlum/",Dircc="/Documents/PyPlum/Calibration Curves/",
                 thick=1.,n_supp=True,mean_m=.4,shape_m=10.,mean_acc=10,shape_acc=1.5,fi_mean=100., fi_shape=1.5,
                 s_mean=10,s_shape=1.5,intv=.95,Ts_mod=True,iterations=1500,burnin=4000,thi=25,cc=True,
                 ccpb="NONE",tparam=False,showchrono=False,reservoir_eff=False,g_thi=2,Sdate=True,Al=.1,seed=True,d_by=1.):
