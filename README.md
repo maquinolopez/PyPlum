@@ -110,7 +110,7 @@ This will run the _PyPlum_ using default settings.
 - **Al:**			Detection limit, this variable limits the chronology (_see: Aquino-López et al. 2018 for details)_
 - **seed:**  Seed for the random variables (used to replicate results). If not changed random seed will be used.
 - **d_by:**  Length of sections used to create age file.
-
+- **reservoir_eff:** Assumes a constant reservoir effect in all radiocarbon dates and it calculates it as a parameter of the model.
 
 
 ## rplum, R's official version
