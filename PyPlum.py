@@ -41,7 +41,8 @@ class Plum:
     def __init__(self,Core='HP1C',dirt="/Documents/PyPlum/",Dircc="/Documents/PyPlum/Calibration Curves/",
                 thick=1.,n_supp=True,mean_m=.4,shape_m=10.,mean_acc=10,shape_acc=1.5,fi_mean=100., fi_shape=1.5,
                 s_mean=10,s_shape=1.5,intv=.95,Ts_mod=True,iterations=1500,burnin=4000,thi=25,cc=True,
-                ccpb="NONE",tparam=False,showchrono=False,reservoir_eff=False,g_thi=2,Sdate=True,Al=.1,seed=True,d_by=1.):
+                ccpb="NONE",tparam=False,showchrono=False,reservoir_eff=False,r_effect_prior=0.,r_effect_psd=500.,
+                g_thi=2,Sdate=True,Al=.1,seed=True,d_by=1.):
         self.hfol	        =   os.path.expanduser("~")
         # Define seeds
         if seed:
@@ -101,7 +102,8 @@ class Plum:
         self.g_thi          =   g_thi
         self.logby          =   log(1./self.by)
         self.iby            =   1/self.by
-        self.sigm           =   1/(2. * (500**2) )
+        self.r_effect_sd    =   1/(2. * (r_effect_psd**2) )
+        self.r_effect_prior =   r_effect_prior
         self.matrixone      =   ones([self.m-1,self.m-1])
         tmp_matrix          =   ones([self.m,self.m])
         self.rows, column_indices = ogrid[:self.matrixone.shape[0], :self.matrixone.shape[1]]
@@ -325,7 +327,7 @@ class Plum:
         x0_1        = uniform.rvs(size=1, loc=1950-self.Sdate-.0001, scale=.0002)
         m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)#uniform.rvs(size=self.m, loc=0, scale=15)
         w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)#uniform.rvs(size=1, loc=.2, scale=.3)
-        r_ini       = uniform.rvs(size=1, loc=-100, scale=100)
+        r_ini       = uniform.rvs(size=1, loc=self.r_effect_prior, scale=100)
         #parameters order fi and supported
         if self.lead_data:
             fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
@@ -432,7 +434,7 @@ class Plum:
         alf     = self.alphas()
         prior   = prior + array((1. - self.shape_acc)*log(alf)+(alf/self.scale_acc)).sum()
         # prior for r_effect
-        prior   = prior +  (self.r_effect**2.)*self.sigm
+        prior   = prior +  (self.r_effect**2.)*self.r_effect_sd
         return prior
 
     def ln_prior_lead(self):
@@ -447,7 +449,7 @@ class Plum:
         # prior for supported
         prior   = prior + array(((1. - self.s_shape)*log(self.paramPb[1:])+(self.paramPb[1:]/self.s_scale)) ).sum()
         # prior for r_effect
-        prior   = prior +  (self.r_effect**2.)*self.sigm
+        prior   = prior +  ((self.r_effect-self.r_effect_prior)**2.)*self.r_effect_sd
         return prior
     # Radiocarbon likelihoods
     def Ux(self):
