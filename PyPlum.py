@@ -18,12 +18,12 @@ try:
     from scipy.stats import uniform, gaussian_kde, gamma, beta
     from scipy.interpolate import interp1d
 except ImportError:
-    print ("you need to install scipy")
+    print ("you need to install SciPy")
     sys.exit(1)
 try:
-    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp
+    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp, fill_between
 except ImportError:
-    print ("you need to install matplotlib")
+    print ("you need to install Matplotlib")
     sys.exit(1)
 try:
     from sklearn.linear_model import LinearRegression
@@ -463,7 +463,7 @@ class Plum:
         dat     = self.times(self.data[:, 2])
         inc     = self.incallookup(dat)
         sigm    = inc[1,:]**2+self.data[:, 1]**2
-        u       = array((((self.data[:, 0] - self.r_effect - inc[0,])**2.)/((2.*sigm))) + .5*log(sigm)).sum() #
+        u       = array( ( ((self.data[:, 0] - self.r_effect - inc[0,])**2.) / (2.*sigm)) + .5*log(sigm) ).sum() #
         return u
     # calendar dates
     def Ucs(self):
@@ -553,6 +553,21 @@ class Plum:
                 x       = repeat(k[2],len(yx))
                 Chronology.plot(x+yx,y,color='blue',alpha = .8,lw=.65)
                 Chronology.plot(x-yx,y,color='blue',alpha = .8,lw=.65)
+                Chronology.fill_between(x+yx, y, color='blue',alpha = .8)
+                Chronology.fill_between(x-yx, y, color='blue',alpha = .8)
+                if self.reservoir_eff:
+                    datesr   = interp(k[0] - mean(self.outreser[1:]),self.ic[:,1],self.ic[:,0])
+                    y       = linspace(datesr-1000,datesr+1000,nn)
+                    kr      = array([k[0] - mean(self.outreser[1:]),k[1],k[2],k[3]])
+                    yx      = array(self.Calibrate(y,kr) )
+                    yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.01
+                    y       = y[logical_and(yx>5e-04,yx<self.g_thi)]
+                    yx      = yx[logical_and(yx>5e-04,yx<self.g_thi)]
+                    x       = repeat(k[2],len(yx))
+                    Chronology.plot(x+yx,y,color='green',alpha = .8,lw=.65)
+                    Chronology.plot(x-yx,y,color='green',alpha = .8,lw=.65)
+                    Chronology.fill_between(x+yx, y, color='green',alpha = .5)
+                    Chronology.fill_between(x-yx, y, color='green',alpha = .5)
         if self.dates_data:
             for k in self.dates:
                 nn      = 1000
@@ -560,8 +575,10 @@ class Plum:
                 yx      = exp(-.5*((k[0]-y)/k[1])**2 )
                 yx      = ((yx-yx.min()) / yx.max()) * self.g_thi
                 x       = repeat(k[2],len(yx))
-                Chronology.plot(x+yx,y,color='green',alpha = .8,lw=.65)
-                Chronology.plot(x-yx,y,color='green',alpha = .8,lw=.65)
+                Chronology.plot(x+yx,y,color='blue',alpha = .8,lw=.65)
+                Chronology.plot(x-yx,y,color='blue',alpha = .8,lw=.65)
+                Chronology.fill_between(x+yx, y, color='blue',alpha = .5)
+                Chronology.fill_between(x-yx, y, color='blue',alpha = .5)
         # plot title and limits
         Chronology.set_xlabel('Depth')
         Chronology.set_ylabel('yr BP')
