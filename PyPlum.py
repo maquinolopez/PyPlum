@@ -8,7 +8,8 @@
 import cProfile
 import sys
 try:
-    from numpy import seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum
+    from numpy import seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,hstack
+
     from numpy.random import seed, randint
     seterr(all='ignore')
 except ImportError:
@@ -21,7 +22,7 @@ except ImportError:
     print ("you need to install SciPy")
     sys.exit(1)
 try:
-    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp, fill_between
+    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp, fill_betweenx
 except ImportError:
     print ("you need to install Matplotlib")
     sys.exit(1)
@@ -185,7 +186,7 @@ class Plum:
                 self.lead_data    = True
                 self.max_pd       = max(self.depths[-1,:])
             else:
-                print("Files is not correct\ncheck files and re-run")
+                print("Files are not correct\ncheck files and re-run")
                 sys.exit(1)
             self.act[:,0]     =   self.act[:,0] * self.density
             self.act[:,1]     =   self.act[:,1] * self.density
@@ -543,31 +544,31 @@ class Plum:
         # Plot 14C dates
         if self.data_data:
             for k in self.data:
-                nn      = 1000
+                nn      = 100
                 dates   = interp(k[0],self.ic[:,1],self.ic[:,0])
-                y       = linspace(dates-1000,dates+1000,nn)
+                y       = linspace(dates-250,dates+250,nn)
                 yx      = array(self.Calibrate(y,k) )
-                yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.01
-                y       = y[logical_and(yx>5e-04,yx<self.g_thi)]
-                yx      = yx[logical_and(yx>5e-04,yx<self.g_thi)]
+                yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.1
+                y       = y[logical_and(yx>5e-03,yx<self.g_thi)]
+                yx      = yx[logical_and(yx>5e-03,yx<self.g_thi)]
                 x       = repeat(k[2],len(yx))
                 Chronology.plot(x+yx,y,color='blue',alpha = .8,lw=.65)
                 Chronology.plot(x-yx,y,color='blue',alpha = .8,lw=.65)
-                Chronology.fill_between(x+yx, y, color='blue',alpha = .8)
-                Chronology.fill_between(x-yx, y, color='blue',alpha = .8)
+                Chronology.fill_betweenx(y,x-yx,x+yx, color='blue',alpha = .5)
+
                 if self.reservoir_eff:
                     datesr   = interp(k[0] - mean(self.outreser[1:]),self.ic[:,1],self.ic[:,0])
-                    y       = linspace(datesr-1000,datesr+1000,nn)
+                    y       = linspace(datesr-250,datesr+250,nn)
                     kr      = array([k[0] - mean(self.outreser[1:]),k[1],k[2],k[3]])
                     yx      = array(self.Calibrate(y,kr) )
-                    yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.01
+                    yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.1
                     y       = y[logical_and(yx>5e-04,yx<self.g_thi)]
                     yx      = yx[logical_and(yx>5e-04,yx<self.g_thi)]
                     x       = repeat(k[2],len(yx))
                     Chronology.plot(x+yx,y,color='green',alpha = .8,lw=.65)
                     Chronology.plot(x-yx,y,color='green',alpha = .8,lw=.65)
-                    Chronology.fill_between(x+yx, y, color='green',alpha = .5)
-                    Chronology.fill_between(x-yx, y, color='green',alpha = .5)
+                    Chronology.fill_betweenx(y,x-yx,x+yx, color='green',alpha = .5)
+        # Plot Calendar dates
         if self.dates_data:
             for k in self.dates:
                 nn      = 1000
@@ -575,11 +576,10 @@ class Plum:
                 yx      = exp(-.5*((k[0]-y)/k[1])**2 )
                 yx      = ((yx-yx.min()) / yx.max()) * self.g_thi
                 x       = repeat(k[2],len(yx))
-                Chronology.plot(x+yx,y,color='blue',alpha = .8,lw=.65)
-                Chronology.plot(x-yx,y,color='blue',alpha = .8,lw=.65)
-                Chronology.fill_between(x+yx, y, color='blue',alpha = .5)
-                Chronology.fill_between(x-yx, y, color='blue',alpha = .5)
-        # plot title and limits
+                Chronology.plot(x+yx,y,color='deepskyblue',alpha = .8,lw=.65)
+                Chronology.plot(x-yx,y,color='deepskyblue',alpha = .8,lw=.65)
+                Chronology.fill_betweenx(y,x-yx,x+yx, color='deepskyblue',alpha = .5)
+                # plot title and limits
         Chronology.set_xlabel('Depth')
         Chronology.set_ylabel('yr BP')
         Chronology.set_ylim([yrs_it.flatten().min()-5,array(yrs_it[int((1-self.intv)*self.iterations)]).max()+30])
@@ -676,7 +676,6 @@ class Plum:
         if self.showchrono:
             show(fig)
         #plot the reservoir effect if chossen
-
     def generate_age_file(self):
         depths      = array(arange(self.breaks[0],self.breaks[-1],self.d_by) )
         low         = interp(depths,self.breaks,self.ages[int(self.intv*self.iterations)])
@@ -685,6 +684,10 @@ class Plum:
         median1     = interp(depths,self.breaks,median(self.ages,axis=0))
         ages        = array([depths,low ,hig,mean1,median1])
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "ages_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
+        simu        = row_stack((self.breaks,self.ages))
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "Simulaltions_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), simu.T, delimiter=',',fmt='%1.3f')
+
+
 
 
     def runPlum(self):
@@ -747,7 +750,4 @@ class Plum:
         self.generate_age_file()
 
 
-
-           #Core,dirt,Dircc,intv,T_mod_C,by,m , mean_m,shape1_m,mean_acc,shape_acc,iterations,  burnin, thi,   cc,         ccpb, tparam
-#Basin  = PyPlum.Plum(Core='Basin',dirt="/Documents/PyPlum/Basin/",cc= 'SHCal13.14C',by=5,iterations=1500,burnin=5000,thi=25,reservoir_eff=True,mean_acc=150.)
-#Basin.runPlum()
+#import importlibimportlib.reload(PyPlum);jc = PyPlum.Plum("simu",r_effect_prior=0.,r_effect_psd=500.,reservoir_eff=True,iterations=100,burnin=10,thi=2);jc.runPlum()
