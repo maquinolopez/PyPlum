@@ -8,7 +8,7 @@
 import cProfile
 import sys
 try:
-    from numpy import seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,hstack
+    from numpy import quantile,seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,hstack
 
     from numpy.random import seed, randint
     seterr(all='ignore')
@@ -22,7 +22,7 @@ except ImportError:
     print ("you need to install SciPy")
     sys.exit(1)
 try:
-    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp, fill_betweenx
+    from matplotlib.pyplot import rc, Line2D, GridSpec, plot, close, show, savefig, hist, xlabel, ylabel, title, axis, subplot, figure, setp, fill_betweenx,xlim,ylim
 except ImportError:
     print ("you need to install Matplotlib")
     sys.exit(1)
@@ -106,12 +106,28 @@ class Plum:
         self.r_effect_sd    =   1/(2. * (r_effect_psd**2) )
         self.r_effect_prior =   r_effect_prior
         self.matrixone      =   ones([self.m-1,self.m-1])
-        tmp_matrix          =   ones([self.m,self.m])
+        # tmp_matrix          =   ones([self.m,self.m])
         self.rows, column_indices = ogrid[:self.matrixone.shape[0], :self.matrixone.shape[1]]
         r                   =  -array(range(self.m-1))[::-1] - 1
         r[r < 0]            += self.matrixone.shape[1]
         self.column_indices = column_indices - r[:, newaxis]
         self.Al             = 1/(self.lam*Al)
+        settings            = array([self.d_by,self.shape1_m,self.mean_m,self.shape_acc,self.mean_acc,self.fi_shape,self.s_shape,self.fi_scale,self.fi_mean,self.s_scale,self.s_mean,self.shape2_m,self.scale_acc,self.by,self.m,self.g_thi])
+        
+        if os.path.isfile(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core)) :
+            print(" We found an existing run, we will load the existing run\n")
+            print(" If you will rerun and want to save a previus run\n relocate the files:\n")
+            self.load_old_run()
+        else:
+            savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core), settings, delimiter=',',fmt='%1.3f')
+            with open(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core), 'a+') as file:
+                file.write(str(self.Ts_mod));file.write("\n")
+                file.write(str(self.reservoir_eff));file.write("\n")
+                file.write(str(self.tparam));file.write("\n")
+                for i in self.breaks:
+                    file.write(str(i));file.write(",")
+
+
 
     def def_breaks(self):
         if self.lead_data:
@@ -119,41 +135,109 @@ class Plum:
         else:
             self.breaks         =   array(arange(min(self.min_data,self.min_date),max(self.max_data,self.max_date)+2*self.by,self.by))
 
+    # def load_calcurve(self):
+    #     # Checks if there are multiple calibration curves needed
+    #     if self.data[0,:].count(self.data[0,0]) == len(self.data[0,:]): 
+    #         self.load_singlecalcurve()
+    #     else:
+    #         self.load_multicalcurve()
+            
+
+    # def load_singlecalcurve(self):
+    #     if self.cc == True:
+    #         if self.data[0,-1] == 1:
+    #             self.cc = "IntCal13.14C"
+    #         elif self.data[0,-1] == 2:
+    #             self.cc = 'Marine13.14C'
+    #         elif self.data[0,-1] == 3:
+    #             self.cc = 'SHCal13.14C'
+    #     if os.path.isfile(self.hfol + self.Dircc + self.cc) :
+    #         intcal              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
+    #         self.ic             =   intcal
+    #         self.cc_mean        =   interp1d(self.ic[:,0],self.ic[:,1], fill_value="extrapolate")
+    #         self.cc_var         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
+    #     else:
+    #         print('Please add calibration curves in folder {}'.format(self.Dircc))
+    #         sys.exit(1)
+    #     if array(self.data[:,0]<0).sum() != 0:
+    #         if self.ccpb == 1:
+    #             self.ccpb ='postbomb_NH1.14C'
+    #         elif self.ccpb == 2:
+    #             self.ccpb = 'postbomb_NH2.14C'
+    #         elif self.ccpb == 3:
+    #             self.ccpb = 'postbomb_NH3.14C'
+    #         elif self.ccpb == 4:
+    #             self.ccpb = 'postbomb_SH3.14C'
+    #         elif self.ccpb == 5:
+    #             self.ccpb = 'postbomb_SH1-2.14C'
+    #         if os.path.isfile(self.hfol + self.Dircc + self.ccpb) :
+    #             intcalpost          =   genfromtxt(self.hfol + self.Dircc + self.ccpb, delimiter=",")
+    #             self.ic             =   concatenate((intcalpost, self.ic), axis=0)
+    #             self.cc_mean        =   interp1d(self.ic[:,0],self.ic[:,1],fill_value="extrapolate")
+    #             self.cc_var         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
+    #         else:
+    #             print('Please add postbomb calibration curves in folder {}'.format(self.Dircc))
+    #             sys.exit(1)
+#################################################################
+#################################################################
+################################################################# 
+    #def load_multicalcurve(self):
     def load_calcurve(self):
-        if self.cc == True:
-            if self.data[0,-1] == 1:
-                self.cc = "IntCal13.14C"
-            elif self.data[0,-1] == 2:
-                self.cc = 'Marine13.14C'
-            elif self.data[0,-1] == 3:
-                self.cc = 'SHCal13.14C'
-        if os.path.isfile(self.hfol + self.Dircc + self.cc) :
-            intcal              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
-            self.ic             =   intcal
-            self.cc_mean        =   interp1d(self.ic[:,0],self.ic[:,1], fill_value="extrapolate")
-            self.cc_var         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
-        else:
-            print('Please add calibration curves in folder {}'.format(self.Dircc))
-            sys.exit(1)
-        if array(self.data[:,0]<0).sum() != 0:
-            if self.ccpb == 1:
-                self.ccpb ='postbomb_NH1.14C'
-            elif self.ccpb == 2:
-                self.ccpb = 'postbomb_NH2.14C'
-            elif self.ccpb == 3:
-                self.ccpb = 'postbomb_NH3.14C'
-            elif self.ccpb == 4:
-                self.ccpb = 'postbomb_SH3.14C'
-            elif self.ccpb == 5:
-                self.ccpb = 'postbomb_SH1-2.14C'
-            if os.path.isfile(self.hfol + self.Dircc + self.ccpb) :
-                intcalpost          =   genfromtxt(self.hfol + self.Dircc + self.ccpb, delimiter=",")
-                self.ic             =   concatenate((intcalpost, self.ic), axis=0)
-                self.cc_mean        =   interp1d(self.ic[:,0],self.ic[:,1],fill_value="extrapolate")
-                self.cc_var         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
-            else:
-                print('Please add postbomb calibration curves in folder {}'.format(self.Dircc))
-                sys.exit(1)
+        print("loading calibration curves")
+        self.cc = "IntCal13.14C"
+        intcal1              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
+        self.ic1             =   intcal1
+        self.cc_mean1        =   interp1d(self.ic1[:,0],self.ic1[:,1], fill_value="extrapolate")
+        self.cc_var1         =   interp1d(self.ic1[:,0],self.ic1[:,2], fill_value="extrapolate")
+        self.cc = 'Marine13.14C'
+        intcal2              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
+        self.ic2             =   intcal2
+        self.cc_mean2        =   interp1d(self.ic2[:,0],self.ic2[:,1], fill_value="extrapolate")
+        self.cc_var2         =   interp1d(self.ic2[:,0],self.ic2[:,2], fill_value="extrapolate")
+        self.cc = 'SHCal13.14C'
+        intcal3              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
+        self.ic3             =   intcal3
+        self.cc_mean3        =   interp1d(self.ic3[:,0],self.ic3[:,1], fill_value="extrapolate")
+        self.cc_var3         =   interp1d(self.ic3[:,0],self.ic3[:,2], fill_value="extrapolate")
+        
+        self.ic              =  [intcal1,intcal2,intcal3]
+        self.cc_mean         =  [self.cc_mean1,self.cc_mean2,self.cc_mean3]
+        self.cc_var          =  [self.cc_var1,self.cc_var2,self.cc_var3]
+        
+            # if os.path.isfile(self.hfol + self.Dircc + self.cc) :
+            #     intcal               =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
+            #     self.ic2             =   intcal
+            #     self.cc_mean2        =   interp1d(self.ic[:,0],self.ic[:,1], fill_value="extrapolate")
+            #     self.cc_var2         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
+            # else:
+            #     print('Please add calibration curves in folder {}'.format(self.Dircc))
+            #     sys.exit(1)
+            # if array(self.data[:,0]<0).sum() != 0:
+            #     if self.ccpb == 1:
+            #         self.ccpb ='postbomb_NH1.14C'
+            #     elif self.ccpb == 2:
+            #         self.ccpb = 'postbomb_NH2.14C'
+            #     elif self.ccpb == 3:
+            #         self.ccpb = 'postbomb_NH3.14C'
+            #     elif self.ccpb == 4:
+            #         self.ccpb = 'postbomb_SH3.14C'
+            #     elif self.ccpb == 5:
+            #         self.ccpb = 'postbomb_SH1-2.14C'
+            #     if os.path.isfile(self.hfol + self.Dircc + self.ccpb) :
+            #         intcalpost           =   genfromtxt(self.hfol + self.Dircc + self.ccpb, delimiter=",")
+            #         self.ic2             =   concatenate((intcalpost, self.ic), axis=0)
+            #         self.cc_mean2        =   interp1d(self.ic[:,0],self.ic[:,1],fill_value="extrapolate")
+            #         self.cc_var2         =   interp1d(self.ic[:,0],self.ic[:,2], fill_value="extrapolate")
+            #     else:
+            #         print('Please add postbomb calibration curves in folder {}'.format(self.Dircc))
+            #         sys.exit(1)
+        print(self.cc_mean[0])
+        print("\n")
+        print(self.cc_mean[2])
+#################################################################
+#################################################################
+#################################################################            
+        
 
     def load_data(self):
         #load 210Pb
@@ -420,9 +504,18 @@ class Plum:
         alf = append(alf,ms[-1])
         return ms
 
-    def incallookup(self,points):
-        mean    =   self.cc_mean(points)
-        var     =   self.cc_var(points)
+    def incallookup(self,points,calicurv):
+        if calicurv.size ==1:            
+            calicurv = array([calicurv])
+            if points.size !=1:
+                calicurv = repeat(calicurv,points.size)  #AQUI ESTOY AQUI
+        else:
+            calicurv = array(calicurv)
+        mean=array([])
+        var=array([])
+        for k in range(calicurv.size):
+            mean    =   append(mean,self.cc_mean[int(calicurv[k]-1)](points[k]))
+            var     =   append(var,self.cc_var[int(calicurv[k]-1)](points[k])  )
         result  =   array([mean, var])
         return result
     # Prior distirbution
@@ -452,25 +545,29 @@ class Plum:
         # prior for r_effect
         prior   = prior +  ((self.r_effect-self.r_effect_prior)**2.)*self.r_effect_sd
         return prior
-    # Radiocarbon likelihoods
+    #   Radiocarbon likelihoods, 
+    #   check calibration curve
+    
     def Ux(self):
         dat     = self.times(self.data[:, 2])
-        inc     = self.incallookup(dat)
+        inc     = self.incallookup(dat,self.data[:, 3])
         sigm    = inc[1,:]**2 + self.data[:, 1]**2
         u       = array(( (7./2.) * log(4. + ((array(self.data[:, 0]) - self.r_effect - inc[0,])**2.)/(2.*sigm)) + .5 * log(sigm) ) ).sum()
         return u
 
     def UxN(self):
         dat     = self.times(self.data[:, 2])
-        inc     = self.incallookup(dat)
+        inc     = self.incallookup(dat,self.data[:, 3])
         sigm    = inc[1,:]**2+self.data[:, 1]**2
         u       = array( ( ((self.data[:, 0] - self.r_effect - inc[0,])**2.) / (2.*sigm)) + .5*log(sigm) ).sum() #
         return u
-    # calendar dates
+    
+    ## Likelihood for calendar dates
     def Ucs(self):
         dat     = self.times(self.dates[:, 2])
         u       = array((((dat- self.dates[:, 0])**2.)*self.dates[:,1]) ).sum() #
         return u
+    
     # 210Pb likelihoods
     def ln_like_data(self):
         Asup    = self.paramPb[1:] * self.density
@@ -490,6 +587,7 @@ class Plum:
         loglike = array(3.5 * log(4. + self.act[:,1] * ((A_i-self.act[:,0])**2.)) ).sum()
         return loglike
 
+    # Supported activity likelihood
     def ln_like_supp(self):
         return array( self.supp[:,1]*( ( self.supp[:,0]-self.paramPb[1:] )**2. ) ).sum()
 
@@ -505,7 +603,7 @@ class Plum:
         self.paramPb    = Param[self.m+2:]
 
     def Calibrate(self,points,dat):
-        inc     = self.incallookup(points)
+        inc     = self.incallookup(points,dat[3])
         sigm    = inc[1,:]**2 + dat[1]**2
         u       = exp( -((dat[0]-inc[0,])**2.)/((2.*sigm))  )* (sigm**-2)
         return u
@@ -545,8 +643,14 @@ class Plum:
         if self.data_data:
             for k in self.data:
                 nn      = 100
-                dates   = interp(k[0],self.ic[:,1],self.ic[:,0])
-                y       = linspace(dates-250,dates+250,nn)
+                if k[3] == 1:
+                    ic = self.ic1
+                if k[3] == 2:
+                    ic = self.ic2
+                if k[3] == 3:
+                    ic = self.ic3  
+                dates   = interp(k[0],ic[:,1],ic[:,0])
+                y       = linspace(dates-150,dates+150,nn)
                 yx      = array(self.Calibrate(y,k) )
                 yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.1
                 y       = y[logical_and(yx>5e-03,yx<self.g_thi)]
@@ -557,8 +661,8 @@ class Plum:
                 Chronology.fill_betweenx(y,x-yx,x+yx, color='blue',alpha = .5)
 
                 if self.reservoir_eff:
-                    datesr   = interp(k[0] - mean(self.outreser[1:]),self.ic[:,1],self.ic[:,0])
-                    y       = linspace(datesr-250,datesr+250,nn)
+                    datesr  = interp(k[0] - mean(self.outreser[1:]),ic[:,1],ic[:,0])
+                    y       = linspace(datesr-150,datesr+150,nn)
                     kr      = array([k[0] - mean(self.outreser[1:]),k[1],k[2],k[3]])
                     yx      = array(self.Calibrate(y,kr) )
                     yx      = ((yx-yx.min()) / yx.max()) * self.g_thi-.1
@@ -678,8 +782,8 @@ class Plum:
         #plot the reservoir effect if chossen
     def generate_age_file(self):
         depths      = array(arange(self.breaks[0],self.breaks[-1],self.d_by) )
-        low         = interp(depths,self.breaks,self.ages[int(self.intv*self.iterations)])
-        hig         = interp(depths,self.breaks,self.ages[int((1-self.intv)*self.iterations)])
+        low         = interp(depths,self.breaks,quantile(self.ages,self.intv,axis=0))
+        hig         = interp(depths,self.breaks,quantile(self.ages,1-self.intv,axis=0))
         mean1       = interp(depths,self.breaks,mean(self.ages,axis=0))
         median1     = interp(depths,self.breaks,median(self.ages,axis=0))
         ages        = array([depths,low ,hig,mean1,median1])
@@ -748,6 +852,54 @@ class Plum:
         self.PlumPlot()
         #Save interval file
         self.generate_age_file()
+    
+    def load_old_run(self):
+        # Loader    =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core), delimiter=',')    
+        # print(Loader)
+        Core_name   =   "{}_{}".format(self.Core, self.m)
+        self.Output    =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out", delimiter=',')    
+        if self.reservoir_eff:
+            self.outreser  =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Reservour.out", delimiter=',')
+        if self.lead_data:
+            self.outplum   =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Plum.out",delimiter=',')
+        
+        
+        
+    def SAR_d(self):
+        output = self.Output[1:,1:-2]
+        if not(self.tparam) :
+            depths      = array(arange(self.breaks[0],self.breaks[-1],self.d_by) )
+            mean1       = interp(depths,self.breaks[1:],mean(output,axis=0))
+            median1     = interp(depths,self.breaks[1:],median(output,axis=0))
+            low         = interp(depths,self.breaks[1:],quantile(output,self.intv,axis=0))
+            hig         = interp(depths,self.breaks[1:],quantile(output,1-self.intv,axis=0))
+            SAR        = array([depths,low ,hig,mean1,median1])
+            savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "SAR_{}_{}_{}.csv".format(self.Core, self.m,self.d_by), SAR.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
+            #Plotting
+            #SAR_depth   = figure(figsize=(10, 10))
+            for sar in output:
+                SAR_depth = plot(self.breaks[1:],sar, color='black',alpha = .02)
+            xlabel('Depth')
+            ylabel('yr BP')
+            ylim(min(hig)-5,max(hig)+mean(hig)/2)
+            #set_xlim([-self.by/12,self.breaks.max()+self.by/12])
+            SAR_depth = plot(depths ,mean1, linestyle='dashed',c='red',alpha = .9)
+            SAR_depth = plot(depths ,low, linestyle='dashed',c='red',alpha = .9)
+            SAR_depth = plot(depths ,hig, linestyle='dashed',c='red',alpha = .9)
+            savefig(self.hfol + self.dirt + '/' + self.Core + '/' + "SAR.pdf",bbox_inches = 'tight')
+    
+        else:
+            print("rerun")
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
 
-#import importlibimportlib.reload(PyPlum);jc = PyPlum.Plum("simu",r_effect_prior=0.,r_effect_psd=500.,reservoir_eff=True,iterations=100,burnin=10,thi=2);jc.runPlum()
