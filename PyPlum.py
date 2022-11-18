@@ -7,9 +7,9 @@
 
 import cProfile
 import sys
+from tqdm import tqdm
 try:
     from numpy import quantile,seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,hstack
-
     from numpy.random import seed, randint
     seterr(all='ignore')
 except ImportError:
@@ -39,7 +39,7 @@ import os.path
 from time import strftime
 
 class Plum:
-    def __init__(self,Core='HP1C',dirt="/Documents/PyPlum/",Dircc="/Documents/PyPlum/Calibration Curves/",
+    def __init__(self,Core='HP1C',dirt="/Documents/PyPlum",Dircc="/Documents/PyPlum/Calibration Curves/",
                 thick=1.,n_supp=True,mean_m=.4,shape_m=10.,mean_acc=10,shape_acc=1.5,fi_mean=100., fi_shape=1.5,
                 s_mean=10,s_shape=1.5,intv=.95,Ts_mod=True,iterations=1500,burnin=4000,thi=25,cc=True,
                 ccpb="NONE",tparam=False,showchrono=False,reservoir_eff=False,r_effect_prior=0.,r_effect_psd=500.,
@@ -51,7 +51,7 @@ class Plum:
         else:
             self.seeds      =   int(seed)
         # Directories and files
-        self.Core           =   Core
+        self.Core           =   Core 
         self.dirt           =   dirt
         #Model parameters
         self.d_by           =   d_by
@@ -73,7 +73,7 @@ class Plum:
         self.tparam         =   tparam     # True: simulate alphas, False: simulates ms
         self.intv           =   intv       # Intervals
         # Load data
-        self.dirt           =   dirt
+        print("Working in \n" + self.hfol + self.dirt + '/' + self.Core + '/'+ " \nfolder") 
         self.Sdate          =   Sdate
         self.load_data()
         # Load Calibration Curve
@@ -113,10 +113,11 @@ class Plum:
         self.column_indices = column_indices - r[:, newaxis]
         self.Al             = 1/(self.lam*Al)
         settings            = array([self.d_by,self.shape1_m,self.mean_m,self.shape_acc,self.mean_acc,self.fi_shape,self.s_shape,self.fi_scale,self.fi_mean,self.s_scale,self.s_mean,self.shape2_m,self.scale_acc,self.by,self.m,self.g_thi])
-        
-        if os.path.isfile(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core)) :
-            print(" We found an existing run, we will load the existing run\n")
-            print(" If you will rerun and want to save a previus run\n relocate the files:\n")
+        Core_name   =   "{}_{}".format(self.Core, self.m)
+        #self.Output    =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out", delimiter=',')  
+        if os.path.isfile(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out") :
+            print(" An existing run was found and will be loaded.\n")
+            print(" If you want to rerun and save a previous run, move the files to a new location. \n")
             self.load_old_run()
         else:
             savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core), settings, delimiter=',',fmt='%1.3f')
@@ -183,7 +184,7 @@ class Plum:
 ################################################################# 
     #def load_multicalcurve(self):
     def load_calcurve(self):
-        print("loading calibration curves")
+        print("Loading calibration curves")
         self.cc = "IntCal13.14C"
         intcal1              =   genfromtxt(self.hfol + self.Dircc + self.cc, delimiter=',')
         self.ic1             =   intcal1
@@ -270,16 +271,16 @@ class Plum:
                 self.lead_data    = True
                 self.max_pd       = max(self.depths[-1,:])
             else:
-                print("Files are not correct\ncheck files and re-run")
+                print("Files are not correct\ncheck files in \n" + self.hfol + self.dirt + '/' + self.Core + '/' + self.Core + '.csv\n' + " and try again") ; print(self.Core)
                 sys.exit(1)
             self.act[:,0]     =   self.act[:,0] * self.density
             self.act[:,1]     =   self.act[:,1] * self.density
             self.act[:,1]     =   .5*(self.act[:,1]**(-2.))
             self.supp[:,1]    =   .5*(self.supp[:,1]**(-2.))
-            print('The 210Pb data whih are loaded are\n{}'.format(self.act))
-            print('The 210Pb supported data whih are loaded are\n{}'.format(self.supp))
+            print('210Pb data found and loaded\n{}'.format(self.act))
+            print('210Pb supported data found and loaded\n{}'.format(self.supp))
         else:
-            print('There is no 210Pb data')
+            print('There is no 210Pb data.\nRuning model without 210Pb data')
             self.max_pd          = 0
             self.lead_data       = False
         #load 14C data
@@ -295,7 +296,7 @@ class Plum:
                     self.min_date   =   1000000000000000.
                 else:
                     self.dates_data = True
-                    print('The calendar dates which are loaded are\n{}'.format(self.dates))
+                    print('Calendar dates found and loaded\n{}'.format(self.dates))
                     self.max_date   =   max(self.dates[:,2])
                     self.min_date   =   min(self.dates[:,2])
                     self.dates[:,1] =   .5*(self.dates[:,1]**-2)
@@ -310,7 +311,7 @@ class Plum:
                     self.max_data   =   max(data[:,2])
                     self.min_data   =   min(data[:,2])
                     print(self.min_data)
-                    print('The radiocarbon dates which are loaded are\n{}'.format(self.data))
+                    print('Radiocarbon dates found and loaded. \n{}'.format(self.data))
         else:
             print('There is no 14C data or calendar dates')
             self.dates_data = False
@@ -810,27 +811,33 @@ class Plum:
         Output[0, 0:n] = x.copy()
         Output[0, n]   = U
         por, por2      = int(self.iterations/10.), int(self.burnin/5.)
+        # Here we start the while
+        pbar = tqdm(total = self.iterations+1)
         while i < self.iterations:
             onemove = leadchrono.onemove(x, U, xp, Up)
             k += 1
-            if (all([k < self.burnin, k % por2 == 0])):
-                print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
+            #if (all([k < self.burnin, k % por2 == 0])):
+            #    print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
             if (uniform.rvs() < onemove[3]):
                 x, xp, ke, A, U, Up = onemove
                 k0 += 1
                 if all([k % self.thi == 0, k > int(self.burnin)]):
                     Output[i+1, 0:n] = x.copy()
                     Output[i+1, n] = U
-                    if any([i % por == 0, i == 0]):
-                        print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+                    #if any([i % por == 0, i == 0]):
+                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
                     i += 1
+                    pbar.update(1)
             else:
                 if all([k % self.thi == 0, k > int(self.burnin)]):
                     Output[i+1, 0:n] = x.copy()
                     Output[i+1, n] = U
-                    if any([i % por == 0, i == 0]):
-                        print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+                    #if any([i % por == 0, i == 0]):
+                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
                     i += 1
+                    pbar.update(1)
+        pbar.close()
+        # end of while
         print("Acceptance rate")
         print(k0/i + .0)
         Core_name   =   "{}_{}".format(self.Core, self.m)
