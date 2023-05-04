@@ -79,6 +79,8 @@ class Plum:
         # Load Calibration Curve
         if self.data_data:
             self.cc             =   cc
+            if ccpb == "NONE":
+                ccpb = 1     
             self.ccpb           =   ccpb
             self.Dircc          =   Dircc
             self.load_calcurve()
@@ -432,11 +434,16 @@ class Plum:
 
     def pendi(self):
         w       = self.param[self.m+1]
-        a       = self.param[1:self.m+1]
+        # orginal order
+        # a       = self.param[1:self.m+1]
+        # change for right other?
+        a = self.param[1:self.m+1][::-1]
         ws      = array(( w*triu(self.matrixone, k=0) + tril(self.matrixone,k=0)) - identity(self.m-1)).prod(axis=1)
-        asmt    = a[:-1][::-1] * self.matrixone#
+        asmt    = a[:-1][::-1] * self.matrixone
         asmt    = asmt[self.rows, self.column_indices] * triu(self.matrixone, k=0)
-        return append(a[-1]*ws+(1-w)*array(asmt*ws/w).sum(axis=1),a[-1] )
+        # orginal order
+        # return append(a[-1]*ws+(1-w)*array(asmt*ws/w).sum(axis=1),a[-1] )
+        return append(a[0] * ws + (1 - w) * array(asmt * ws / w).sum(axis=1), a[0])
 
     def pendi1(self):
         a   = self.param[1:self.m+1]
@@ -786,42 +793,47 @@ class Plum:
         else:
             x,xp           = self.ini_points() , self.ini_points()
         print('Total iterations are {}'.format(self.thi*self.iterations + self.burnin))
+        total_iterations = self.thi*self.iterations + self.burnin
         U, Up          = self.obj(x), self.obj(xp)
         leadchrono     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
-        i, k, k0, n    = 0, 0, 0, len(x)
-        Output         = zeros((self.iterations+1, n+1))
-        Output[0, 0:n] = x.copy()
-        Output[0, n]   = U
-        por, por2      = int(self.iterations/10.), int(self.burnin/5.)
-        # Here we start the while
-        pbar = tqdm(total = self.iterations+1)
-        while i < self.iterations:
-            onemove = leadchrono.onemove(x, U, xp, Up)
-            k += 1
-            #if (all([k < self.burnin, k % por2 == 0])):
-            #    print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
-            if (uniform.rvs() < onemove[3]):
-                x, xp, ke, A, U, Up = onemove
-                k0 += 1
-                if all([k % self.thi == 0, k > int(self.burnin)]):
-                    Output[i+1, 0:n] = x.copy()
-                    Output[i+1, n] = U
-                    #if any([i % por == 0, i == 0]):
-                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
-                    i += 1
-                    pbar.update(1)
-            else:
-                if all([k % self.thi == 0, k > int(self.burnin)]):
-                    Output[i+1, 0:n] = x.copy()
-                    Output[i+1, n] = U
-                    #if any([i % por == 0, i == 0]):
-                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
-                    i += 1
-                    pbar.update(1)
-        pbar.close()
+        leadchrono.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
+        # i, k, k0, n    = 0, 0, 0, len(x)
+        # Output         = zeros((self.iterations+1, n+1))
+        # Output[0, 0:n] = x.copy()
+        # Output[0, n]   = U
+        # por, por2      = int(self.iterations/10.), int(self.burnin/5.)
+        # # Here we start the while
+        # pbar = tqdm(total = self.iterations+1)
+        # while i < self.iterations:
+        #     onemove = leadchrono.onemove(x, U, xp, Up)
+        #     k += 1
+        #     #if (all([k < self.burnin, k % por2 == 0])):
+        #     #    print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
+        #     if (uniform.rvs() < onemove[3]):
+        #         x, xp, ke, A, U, Up = onemove
+        #         k0 += 1
+        #         if all([k % self.thi == 0, k > int(self.burnin)]):
+        #             Output[i+1, 0:n] = x.copy()
+        #             Output[i+1, n] = U
+        #             #if any([i % por == 0, i == 0]):
+        #             #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+        #             i += 1
+        #             pbar.update(1)
+        #     else:
+        #         if all([k % self.thi == 0, k > int(self.burnin)]):
+        #             Output[i+1, 0:n] = x.copy()
+        #             Output[i+1, n] = U
+        #             #if any([i % por == 0, i == 0]):
+        #             #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+        #             i += 1
+        #             pbar.update(1)
+        # pbar.close()
         # end of while
-        print("Acceptance rate")
-        print(k0/i + .0)
+        Output = leadchrono.Output[-self.iterations:, :]
+        # save inicial points added 26/04/2023
+        initial_poitns = [runtwalk.x, runtwalk.xp]
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "initial_poitns.csv", initial_poitns, delimiter=',')
+        # save out file
         Core_name   =   "{}_{}".format(self.Core, self.m)
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out", Output[:,append(range(self.m+2),-1)], delimiter=',',fmt='%1.3f')
         self.Output         = Output
