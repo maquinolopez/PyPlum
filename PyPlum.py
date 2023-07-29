@@ -793,42 +793,41 @@ class Plum:
             x,xp           = self.ini_points_R() , self.ini_points_R()
         else:
             x,xp           = self.ini_points() , self.ini_points()
-        print('Total iterations are {}'.format(self.thi*self.iterations + self.burnin))
-        total_iterations = self.thi*self.iterations + self.burnin
+        print('Total iterations are {}'.format(self.thi * self.iterations + self.burnin))
+        total_iterations = self.thi * self.iterations + self.burnin
         U, Up          = self.obj(x), self.obj(xp)
-        twalkrun     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
-        twalkrun.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
-        # i, k, k0, n    = 0, 0, 0, len(x)
-        # Output         = zeros((self.iterations+1, n+1))
-        # Output[0, 0:n] = x.copy()
-        # Output[0, n]   = U
-        # por, por2      = int(self.iterations/10.), int(self.burnin/5.)
-        # # Here we start the while
-        # pbar = tqdm(total = self.iterations+1)
-        # while i < self.iterations:
-        #     onemove = leadchrono.onemove(x, U, xp, Up)
-        #     k += 1
-        #     #if (all([k < self.burnin, k % por2 == 0])):
-        #     #    print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
-        #     if (uniform.rvs() < onemove[3]):
-        #         x, xp, ke, A, U, Up = onemove
-        #         k0 += 1
-        #         if all([k % self.thi == 0, k > int(self.burnin)]):
-        #             Output[i+1, 0:n] = x.copy()
-        #             Output[i+1, n] = U
-        #             #if any([i % por == 0, i == 0]):
-        #             #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
-        #             i += 1
-        #             pbar.update(1)
-        #     else:
-        #         if all([k % self.thi == 0, k > int(self.burnin)]):
-        #             Output[i+1, 0:n] = x.copy()
-        #             Output[i+1, n] = U
-        #             #if any([i % por == 0, i == 0]):
-        #             #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
-        #             i += 1
-        #             pbar.update(1)
-        # pbar.close()
+        twalkrun     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support)#,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
+        # twalkrun.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
+        i, k, k0, n    = 0, 0, 0, len(x)
+        Output         = zeros((self.iterations+1, n+1))
+        Output[0, 0:n] = x.copy()
+        Output[0, n]   = U
+        # Here we start the while
+        pbar = tqdm(total = self.iterations+1)
+        while i < self.iterations:
+            onemove = twalkrun.onemove(x, U, xp, Up)
+            k += 1
+            #if (all([k < self.burnin, k % por2 == 0])):
+            #    print("Burn-in {}".format(int(100*(k+.0)/self.burnin)) )
+            if (uniform.rvs() < onemove[3]):
+                x, xp, ke, A, U, Up = onemove
+                k0 += 1
+                if all([k % self.thi == 0, k > int(self.burnin)]):
+                    Output[i+1, 0:n] = x.copy()
+                    Output[i+1, n] = U
+                    #if any([i % por == 0, i == 0]):
+                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+                    i += 1
+                    pbar.update(1)
+            else:
+                if all([k % self.thi == 0, k > int(self.burnin)]):
+                    Output[i+1, 0:n] = x.copy()
+                    Output[i+1, n] = U
+                    #if any([i % por == 0, i == 0]):
+                    #    print('{}%'.format(int(100*(i+.0)/self.iterations)) )
+                    i += 1
+                    pbar.update(1)
+        pbar.close()
         # end of while
         Output = twalkrun.Output[-self.iterations:, :]
         # save inicial points added 26/04/2023
