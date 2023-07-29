@@ -47,7 +47,7 @@ class Plum:
         self.hfol	        =   os.path.expanduser("~")
         # Define seeds
         if seed:
-            self.seeds      =   randint(1000,9000)
+            self.seeds      =   randint(2,9000)
         else:
             self.seeds      =   int(seed)
         # Directories and files
@@ -68,7 +68,7 @@ class Plum:
         self.shape2_m       =   (self.shape1_m*(1-mean_m))/mean_m
         self.scale_acc      =   mean_acc/shape_acc
         # MCMC parameters
-        self.iterations     =   iterations
+        self.iterations     =   int(iterations)
         # Extra parameters
         self.tparam         =   tparam     # True: simulate alphas, False: simulates ms
         self.intv           =   intv       # Intervals
@@ -88,10 +88,10 @@ class Plum:
         self.by             =   thick         # Thickness of bacon seccion
         self.def_breaks()
         self.m              =   len(self.breaks ) - 1 # Number of sections
-        # setting other variables
-        self.intv           =   (1-intv)/2.           #
-        self.thi            =   int((self.m+2))*thi   # 100 #Testing value
-        self.burnin         =   burnin*(self.m+5)     # 20000 #Testing value
+        # setting and other variables
+        self.intv           =   (1-intv)/2. # set the level of probability in the credible interval     
+        self.thi            =   int(self.m) * thi   # set the thinning 
+        self.burnin         =   int(burnin * self.m ) # set the burn-in 
         #filename and constants
         self.lam            =   0.03114
         self.pdfname        =   "Chronology_{}_{}_obj.pdf".format(self.Core, self.m)
@@ -251,7 +251,7 @@ class Plum:
                 if len(self.dates[:,1]) == 0 :
                     self.dates_data = False
                     self.max_date   =   0
-                    self.min_date   =   1000000000000000.
+                    self.min_date   =   1e+16
                 else:
                     self.dates_data = True
                     print('Calendar dates found and loaded\n{}'.format(self.dates))
@@ -263,7 +263,7 @@ class Plum:
                 if len(self.data[:,1]) == 0 :
                     self.data_data  =   False
                     self.max_data   =   0
-                    self.min_data   =   1000000000000000.
+                    self.min_data   =   1e+16
                 else:
                     self.data_data  =   True
                     self.max_data   =   max(data[:,2])
@@ -349,8 +349,8 @@ class Plum:
     def ini_points_(self):
         # parameter order th0,ms,w
         x0_1        = uniform.rvs(size=1, loc=1950-self.Sdate-.0001, scale=.0002)
-        m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)#uniform.rvs(size=self.m, loc=0, scale=15)
-        w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)#uniform.rvs(size=1, loc=.2, scale=.3)
+        m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)
+        w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)
         #parameters order fi and supported
         if self.lead_data:
             fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
@@ -543,7 +543,8 @@ class Plum:
         loglike = array( self.act[:,1]*((A_i-self.act[:,0])**2.) ).sum()
         return loglike
 
-    def ln_like_T(self): #likelihood using T student
+    def ln_like_T(self): #likelihood using T student for lead210
+        # revisar creo que esa mal
         Asup    = self.paramPb[1:] * self.density
         tmp2    = self.paramPb[0]/self.lam
         ts      = self.times(self.depths[:,1]) - self.param[0]
@@ -678,7 +679,7 @@ class Plum:
         Chronology.set_ylabel('yr BP')
         Chronology.set_ylim([yrs_it.flatten().min()-5,array(yrs_it[int((1-self.intv)*self.iterations)]).max()+30])
         Chronology.set_xlim([-self.by/12,self.breaks.max()+self.by/12])
-        #Chronology.set_title(self.Core)
+        Chronology.set_title(self.Core)
         string_vals = "{}".format(self.Core)
         Chronology.text(.05,.95, string_vals,transform = Chronology.transAxes,size = 20 )
 
@@ -795,8 +796,8 @@ class Plum:
         print('Total iterations are {}'.format(self.thi*self.iterations + self.burnin))
         total_iterations = self.thi*self.iterations + self.burnin
         U, Up          = self.obj(x), self.obj(xp)
-        leadchrono     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
-        leadchrono.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
+        twalkrun     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
+        twalkrun.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
         # i, k, k0, n    = 0, 0, 0, len(x)
         # Output         = zeros((self.iterations+1, n+1))
         # Output[0, 0:n] = x.copy()
@@ -829,16 +830,16 @@ class Plum:
         #             pbar.update(1)
         # pbar.close()
         # end of while
-        Output = leadchrono.Output[-self.iterations:, :]
+        Output = twalkrun.Output[-self.iterations:, :]
         # save inicial points added 26/04/2023
-        initial_poitns = [runtwalk.x, runtwalk.xp]
-        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "initial_poitns.csv", initial_poitns, delimiter=',')
+        initial_poitns = [twalkrun.x, twalkrun.xp]
         # save out file
         Core_name   =   "{}_{}".format(self.Core, self.m)
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "initial_poitns.csv", initial_poitns, delimiter=',')
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out", Output[:,append(range(self.m+2),-1)], delimiter=',',fmt='%1.3f')
         self.Output         = Output
         self.Outputplt      = Output[:,append(range(self.m+2),-1)]
-        self.accpt_rt       = k/k0
+        # self.accpt_rt       = k/k0  # this is no longer needed
         if self.reservoir_eff:
             self.outreser   = Output[:,self.m+2]
             savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Reservour.out", self.outreser, delimiter=',',fmt='%1.3f')
@@ -854,6 +855,7 @@ class Plum:
         #Save interval file
         self.generate_age_file()
     
+
     def load_old_run(self):
         # Loader    =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + "{}_settings.txt".format(self.Core), delimiter=',')    
         # print(Loader)
