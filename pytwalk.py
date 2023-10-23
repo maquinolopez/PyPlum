@@ -8,21 +8,24 @@ A generic self adjusting MCMC                   ###
 see:  http://www.cimat.mx/~jac/twalk/           ###
 
 ###  New version March 2023 ###
-New plotting saving a loading methods and classes
+New plotting, saving and loading methods and also
+### new derived classes for Bayesian inference
  pyPstwalk, Ind1dsampl and BUQ.
  
-###  see twalktutorial.py ###
+###  see new twalktutorial2.py ###
 ########################################################
 
 """
 
+import signal
+
 from time import time, localtime, strftime
 
-from numpy import array, ceil, zeros, linspace, loadtxt, savetxt, arange
-from numpy import exp, where, cov, ones, sqrt, log, floor, pi, cumsum
+from numpy import array, ceil, zeros, linspace, loadtxt, savetxt, arange, mod
+from numpy import exp, where, cov, ones, sqrt, log, floor, pi, cumsum, append
 from numpy import sum as np_sum
 from scipy.stats import uniform, norm
-from tqdm import tqdm
+from tqdm import tqdm 
 try:
     from matplotlib.pylab import subplots
 except:
@@ -293,11 +296,17 @@ class pytwalk:
         self.silent=silent
         
         self.col_names = ""
-        self.par_name = []
+        self.par_names = []
         for pn in range(self.n):
-            self.par_name += ["parameter %d" % (pn)]
+            self.par_names += ["parameter %d" % (pn)]
             self.col_names += '"par ' + str(pn) + '", '
         self.col_names += '"Energy"' #last colomun, -logpost
+        
+        self.stop_twalk = False
+
+    def sigint_handler( self, signal, frame):
+        print('twalk interrupted, finishing current iteration ... ', end='')
+        self.stop_twalk = True
 
     def Energy( self, x):
         self.ll_e = self.LikelihoodEnergy(x)
@@ -327,15 +336,21 @@ class pytwalk:
 
 
 
-    def Run( self, T, x0, xp0, k=1):
+    def Run( self, T, x0, xp0, k=1, thin=1):
         """Run the twalk.
         
            Run( T, x0, xp0, k=1),
            T = Number of iterations.
            x0, xp0, two initial points within the support,
            ***each entry of x0 and xp0 most be different***.
+           If either of x0 or xp0 (or both) are None, continue with the
+           current values of x and xp.  This is useful to continue a stopped MCMC
            
-           If using a penalized likelihhod, change the penalization to k. 
+           If using a penalized likelihhod, change the penalization to k.
+           
+           To save not all iterations, change thin(=1) to save every thin iterations (thining).
+           This is usefule when very big, high dimensional samples, are needed, to save
+           memory space.
         """
         
         self.k = k
@@ -349,30 +364,45 @@ class pytwalk:
             else:
                 print(" (k=%f). " % (self.k,), strftime("%a, %d %b %Y, %H:%M:%S.", localtime(sec)))
 
+        if thin > 1:
+            print("pytwalk: Saving every %d iterations only." % (thin))
+
+        if (x0 is None) or (xp0 is None):
+            ### Continue with the MCMC, the next line will fail if no previous MCMC was run
+            x0 = self.x
+            xp0 = self.xp
+            ### Add to the array's to place the iterations and the U's ... we donot save up's
+            self.Output = append( self.Output, zeros((1 + T//thin, self.n+1)), axis=0)
+            self.Output_u = append( self.Output_u, zeros(1 + T//thin))
+            T = T + self.T ### Add to the existing number of iterations
+            for i in range(6):
+                if self.kercall[i] != 0:
+                    self.Acc[i] *= self.kercall[i] #Recover back the number of accepted 
+            it0 = self.T
+        else:
+            ### New run, set the array to place the iterations and the U's ... we donot save up's
+            self.Output = zeros((1 + T//thin, self.n+1))
+            self.Output_u = zeros(1 + T//thin)
+            self.T = T+1
+            self.Acc = zeros(6)
+            self.kercall = zeros(6) ## Times each kernel is called
+            it0 = 0
+            
         ### Check x0 and xp0 are in the support
         [ rt, u, up] = self._SetUpInitialValues( x0, xp0)
 
         if (not(rt)):
             return 0
         
-
-        ### send an estimation for the duration of the sampling if 
-        ### evaluating the ob. func. twice (in self._SetUpInitialValues) takes more than one second
+        ### send an estimation for the duration of the sampling, since
+        ### we have evaluated the ob. func. twice (in self._SetUpInitialValues).
         
         if not(self.silent):
             sec2 = time() # last time we sent a message
-            print("       " + Remain( T, 2, sec, sec2))
+            print("       " + Remain( T-it0, 2, sec, sec2))
 
-        x = x0     ### Use x and xp by reference, so we can retrive the last values used
+        x = x0
         xp = xp0
-
-        ### Set the array to place the iterations and the U's ... we donot save up's
-        self.Output = zeros((T+1, self.n+1))
-        self.Output_u = zeros(T+1)
-        self.T = T+1
-        self.Acc = zeros(6)
-        kercall = zeros(6) ## Times each kernel is called
-
         
         self.Output[ 0, 0:self.n] = x.copy()
         self.Output[ 0, self.n] = u
@@ -381,13 +411,15 @@ class pytwalk:
         j1=1
         j=0
 
+        self.stop_twalk = False # To catch the Keybpoard interrupt
+        dfl_handler = signal.signal( signal.SIGINT, self.sigint_handler)
         ### Sampling
-        for it in tqdm(range(T)):
-        
+        for it in tqdm(range( it0, T - mod((T-it0), thin))):
+
             y, yp, ke, A, u_prop, up_prop = self.onemove( x, u, xp, up)
 
-            kercall[ke] += 1
-            kercall[5] += 1 
+            self.kercall[ke] += 1
+            self.kercall[5] += 1 
             if (uniform.rvs() < A):  
                 x = y.copy()   ### Accept the propolsal y
                 u = u_prop
@@ -402,11 +434,20 @@ class pytwalk:
             self.xp = xp
             self.u = u
             self.up = up
+            if mod((it-it0) , thin) == 0:
+                ### Save iteration
+                self.Output[1 + (it-it0)//thin,0:self.n] = x.copy()
+                self.Output[1 + (it-it0)//thin,self.n] = u
+                self.Output_u[1 + (it-it0)//thin] = self.ll_e
 
-            self.Output[it+1,0:self.n] = x.copy()
-            self.Output[it+1,self.n] = u
-            self.Output_u[it+1] = self.ll_e
-
+            if self.stop_twalk:
+                print("done.")
+                signal.signal( signal.SIGINT, dfl_handler)
+                self.Output = self.Output[:(1 + (it-it0)//thin + 1),:]
+                self.Output_u = self.Output_u[:(1 + (it-it0)//thin + 1)]
+                self.stop_twalk = False
+                break
+         
             ### Estimate the remaing time, every 2**j1 iterations
             if not(self.silent):
                 if ((it % (1 << j1)) == 0):
@@ -415,22 +456,25 @@ class pytwalk:
                     j1 = min( j1, 10)  # check the time at least every 2^10=1024 iterations
                     ax = time()
                     if ((ax - sec2) > (1 << j)*self.WAIT): # Print an estimation every WAIT*2**j 
-                        print("pytwalk: %10d iterations so far. " % (it,) + Remain( T, it, sec, ax))
+                        print("pytwalk: %10d iterations so far. " % (it-it0,) + Remain( T-it0, it-it0, sec, ax))
                         sec2 = ax
                         j += 1
                         j1 -= 1 # check the time as often 
-        
+
+        signal.signal( signal.SIGINT, dfl_handler)
+        for i in range(6):
+            if self.kercall[i] != 0:
+                self.Acc[i] /= self.kercall[i]
+        self.T = self.Output.shape[0]
         if not(self.silent):
             if (self.Acc[5] == 0):
                 print("pytwalk: WARNING,  all propolsals were rejected!")
                 print(strftime("%a, %d %b %Y, %H:%M:%S.", localtime(time())))
                 return 0
             else:
-                print("pytwalk: finished, " + strftime("%a, %d %b %Y, %H:%M:%S.", localtime(time())))
+                print("pytwalk: finished, %d iterations." % (self.T*thin,)) 
+                print(strftime("%a, %d %b %Y, %H:%M:%S.", localtime(time())))
 
-        for i in range(6):
-            if kercall[i] != 0:
-                self.Acc[i] /= kercall[i]
         return 1
 
 
@@ -747,7 +791,7 @@ class pytwalk:
             fig, ax = subplots()
         if end == -1:
             end = self.T
-        t = arange( burn_in, self.T)
+        t = arange( burn_in, end, iat)
         mult = 1
         if par == -1:
             ylabel = "LogPost"
@@ -760,7 +804,7 @@ class pytwalk:
         return ax
 
     def TS( self, par=-1, start=0, end=0):
-        """This is a legacy method, now use PlotTs, use burn_in isntead of start. 
+        """This is a legacy method, now use PlotTs, use burn_in instead of start. 
            Plot a time series of parameter (number) par. par may also be the (partial) name
            of the parameter (string).
            par=-1 plots the logpost (not the Energy). 
@@ -770,7 +814,8 @@ class pytwalk:
            
            returns the axes used.
         """
-        return self.PlotTs( par=par, burn_in=start, end=end)
+        ax = self.PlotTs( par=par, burn_in=start, end=end)
+        return ax
 
     def Ana( self, par=-1, burn_in=0, start=-1, end=-1):
         """Output Analysis, TS plots, accepatnce rates, IAT etc.
@@ -808,7 +853,7 @@ class pytwalk:
         if start > 0:
              burn_in = start
         if end == -1:
-            end = self.Output.shape[0]
+            end = self.T
 
         if (par == -1):
             indx = arange( burn_in, end, step=iat)
@@ -821,7 +866,7 @@ class pytwalk:
         else:
             ser = self.Output[burn_in:end:iat, par]
             if (xlabel == None):
-                xlabel = self.par_name[par]
+                xlabel = self.par_names[par]
             
         if ax is None:
             fig, ax = subplots()
@@ -862,6 +907,18 @@ class pytwalk:
         """Load the twalk Output."""
         self.Output = loadtxt(fnam, skiprows=1, **kwargs)
         self.T = self.Output.shape[0]
+
+     
+    def PlotCorner( self, pars=None, burn_in=0, density=True, **kwargs):
+        """Make a corner plot of the list of parameters pars.  If pars=None the plot
+           all parameters returns the figure instance. 
+        """
+        if pars is None:
+            pars = arange(self.n)
+        pars = array(pars)
+        fig = corner(self.Output[burn_in:,pars], hist_kwargs={'density':density}, **kwargs)
+        fig.tight_layout()
+        return fig
 
         
     ##### A simple Random Walk M-H
@@ -980,10 +1037,10 @@ class pyPstwalk(pytwalk):
     
     def __init__(self, par_names, par_prior, par_supp, default_burn_in=0, k=1):
         
-        self.par_names = par_names
-        self.q = len(self.par_names) #Number of parameters
+        self.q = len(par_names) #Number of parameters
         super().__init__(  n=self.q, U=self.Energy, Supp=self.Supp, k=k)
         self.k = k #No penalization
+        self.par_names = par_names # Overwrite the default par names
         
         ### Create a string with the par names separated by commas,
         ### for the csv file to save twalk Output
@@ -1047,12 +1104,12 @@ class pyPstwalk(pytwalk):
         self.prior_e = -1*self.logprior(x)
         return self.k*self.ll_e + self.prior_e
         
-    def RunMCMC( self, T, burn_in=0, fnam=None):
+    def RunMCMC( self, T, burn_in=0, fnam=None, **kwargs):
         """Runs the t-walk for T iterations.  Ana is called to calculate
              the IAT with a burn in of burn_in.
              fnam is an optional file name to save twalk Output to.
         """
-        self.Run( T=T, x0=self.SimInit(), xp0=self.SimInit())
+        self.Run( T=T, x0=self.SimInit(), xp0=self.SimInit(), **kwargs)
         if burn_in == 0:
             print("Use burn_in > 0 to run the sample analysis Ana automatically.")
             self.PlotTs()

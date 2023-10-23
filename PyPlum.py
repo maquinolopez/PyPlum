@@ -9,7 +9,7 @@ import cProfile
 import sys
 from tqdm import tqdm
 try:
-    from numpy import flip,where,quantile,seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,hstack
+    from numpy import flip,where,quantile,seterr,ogrid, newaxis, arange, triu, ones, tril, identity,median, delete, logical_and,nditer,r_, sort, append, concatenate, repeat, linspace, interp, genfromtxt, array, exp, log, sum,  savetxt, mean, matrix, sqrt, zeros, cumsum, row_stack,vstack,hstack
     from numpy.random import seed, randint
     seterr(all='ignore')
 except ImportError:
@@ -40,10 +40,15 @@ from time import strftime
 
 class Plum:
     def __init__(self,Core='HP1C',dirt="/Documents/PyPlum",Dircc="/Documents/PyPlum/Calibration Curves/",
-                thick=1.,n_supp=True,mean_m=.4,shape_m=10.,mean_acc=10,shape_acc=1.5,fi_mean=100., fi_shape=1.5,
-                s_mean=10,s_shape=1.5,intv=.95,Ts_mod=True,iterations=1500,burnin=4000,thi=25,cc=True,
-                ccpb="NONE",tparam=False,showchrono=False,reservoir_eff=False,r_effect_prior=0.,r_effect_psd=500.,
-                g_thi=2,Sdate=True,Al=.1,seed=True,d_by=1.):
+                thick=1.,n_supp=True,  #model parameters
+                mean_m=.5,shape_m=5.,mean_acc=10,shape_acc=1.5,cc=True,ccpb="NONE", # bacon paramters
+                fi_mean=50., fi_shape=2,s_mean=10,s_shape=5.,Al=.1,s_model = 2, # plum parameters
+                reservoir_eff=False,r_effect_prior=0.,r_effect_psd=500., # reservour plum parameters
+                iterations=2500,burnin=4000,thi=25, # twalk parameters
+                intv=.95,showchrono=False,  # plot parameters
+                Ts_mod=True, # use T distribution or normal distribution 
+                tparam=False, # tparams referes to which parammetrization to use # True: simulate alphas, False: simulates ms
+                g_thi=2,Sdate=True,seed=True,d_by=1.,plotresults=True):
         self.hfol	        =   os.path.expanduser("~")
         # Define seeds
         if seed:
@@ -61,17 +66,20 @@ class Plum:
         self.mean_acc       =   mean_acc   # Mean of accumulation rate
         self.fi_shape       =   fi_shape
         self.s_shape        =   s_shape
-        self.fi_scale       =   fi_mean/fi_shape
         self.fi_mean        =   fi_mean
-        self.s_scale        =   s_mean/s_shape
+        self.fi_scale       =   fi_shape/fi_mean # we invert for quicker calculation
         self.s_mean         =   s_mean
+        self.s_scale        =   s_shape/s_mean # we invert for quicker calculation
         self.shape2_m       =   (self.shape1_m*(1-mean_m))/mean_m
-        self.scale_acc      =   mean_acc/shape_acc
+        # invertimos aqui para hacer mas rapido el codigo
+        self.scale_acc      =   shape_acc/mean_acc # Scale of accumulation rate, 
+        self.plotresults    =   plotresults
         # MCMC parameters
         self.iterations     =   int(iterations)
         # Extra parameters
         self.tparam         =   tparam     # True: simulate alphas, False: simulates ms
         self.intv           =   intv       # Intervals
+        self.s_model        =   s_model 
         # Load data
         print("Working in \n" + self.hfol + self.dirt + '/' + self.Core + '/'+ " \nfolder") 
         self.Sdate          =   Sdate
@@ -94,6 +102,7 @@ class Plum:
         self.burnin         =   int(burnin * self.m ) # set the burn-in 
         #filename and constants
         self.lam            =   0.03114
+        self.one_over_lam       =   1./self.lam
         self.pdfname        =   "Chronology_{}_{}_obj.pdf".format(self.Core, self.m)
         # defines which model to used
         self.Ts_mod         =   Ts_mod
@@ -114,7 +123,7 @@ class Plum:
         r[r < 0]            += self.matrixone.shape[1]
         self.column_indices = column_indices - r[:, newaxis]
         self.Al             = 1/(self.lam*Al)
-        settings            = array([self.d_by,self.shape1_m,self.mean_m,self.shape_acc,self.mean_acc,self.fi_shape,self.s_shape,self.fi_scale,self.fi_mean,self.s_scale,self.s_mean,self.shape2_m,self.scale_acc,self.by,self.m,self.g_thi])
+        settings            = array([self.d_by,self.shape1_m,self.mean_m,self.shape_acc,self.mean_acc,self.fi_shape,1/self.s_shape,self.fi_scale,self.fi_mean,1/self.s_scale,self.s_mean,self.shape2_m,1/self.scale_acc,self.by,self.m,self.g_thi])
         Core_name   =   "{}_{}".format(self.Core, self.m)
         #self.Output    =   genfromtxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out", delimiter=',')  
         if os.path.isfile(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + ".out") :
@@ -224,7 +233,10 @@ class Plum:
                 self.supp         = array(Data[:,[5,6]])
                 self.density      = Data[:,1] * 10.
                 self.Sdate        = float(Data[0,7])
-                self.s_len        = len(self.supp)
+                if self.s_model ==  1: 
+                    self.s_len    = 1
+                else:
+                    self.s_len        = len(self.supp)
                 self.lead_data    = True
                 self.max_pd       = max(self.depths[-1,:])
             else:
@@ -349,50 +361,65 @@ class Plum:
     def ini_points_(self):
         # parameter order th0,ms,w
         x0_1        = uniform.rvs(size=1, loc=1950-self.Sdate-.0001, scale=.0002)
-        m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)
-        w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)
+        ms_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=1./self.scale_acc)
+        if not(self.tparam):
+            w_ini1      = uniform.rvs(size=1,loc=0,scale=min(ms_ini_1[:-1] / ms_ini_1[1:]))
+        else:
+            w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m) 
         #parameters order fi and supported
         if self.lead_data:
-            fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
-            s_ini       = gamma.rvs(size=self.s_len,a=self.s_shape,scale=self.s_scale)#)uniform.rvs(size=self.s_len, loc=0, scale=5)
-            x           = append(append(append(x0_1,append( m_ini_1 , w_ini1 )),fi_ini),s_ini)
+            fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=1/self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
+            s_ini       = gamma.rvs(size=self.s_len,a=self.s_shape,scale=1/self.s_scale)#)uniform.rvs(size=self.s_len, loc=0, scale=5)
+            x           = append(append(append(x0_1,append( ms_ini_1 , w_ini1 )),fi_ini),s_ini)
             while not self.support(x):
                 m_ini_1 = uniform.rvs(size=self.m, loc=0, scale=1)
-                x       = append(append(append(x0_1,append( m_ini_1 , w_ini1 )),fi_ini),s_ini)
+                if not(self.tparam):
+                    w_ini1      = uniform.rvs(size=1,loc=0,scale=min(ms_ini_1[:-1] / ms_ini_1[1:]))
+                else:
+                    w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m) 
+                x       = append(append(append(x0_1,append( m_ini_1 , w_ini1 )),fi_ini),s_ini)     
         else:
             x           = append(x0_1,append( m_ini_1 , w_ini1 ))
             while not self.support(x):
                 m_ini_1 = uniform.rvs(size=self.m, loc=0, scale=1)
+                if not(self.tparam):
+                    w_ini1      = uniform.rvs(size=1,loc=0,scale=min(ms_ini_1[:-1] / ms_ini_1[1:]))
+                else:
+                    w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m) 
                 x       = append(x0_1,append( m_ini_1 , w_ini1 ))
         return x
 
     def ini_points_R(self):
         # parameter order th0,ms,w,reservoir effect
         x0_1        = uniform.rvs(size=1, loc=1950-self.Sdate-.0001, scale=.0002)
-        m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=self.scale_acc)#uniform.rvs(size=self.m, loc=0, scale=15)
-        w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m)#uniform.rvs(size=1, loc=.2, scale=.3)
+        m_ini_1     = gamma.rvs(size=self.m,a=self.shape_acc,scale=1./self.scale_acc)  #uniform.rvs(size=self.m, loc=0, scale=15)
+        if not(self.tparam):
+            w_ini1      = uniform.rvs(size=1,loc=0,scale=min(m_ini_1[:-1] / m_ini_1[1:]))
+        else:
+            w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m) 
         r_ini       = uniform.rvs(size=1, loc=self.r_effect_prior, scale=100)
         #parameters order fi and supported
         if self.lead_data:
-            fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
-            s_ini       = gamma.rvs(size=self.s_len,a=self.s_shape,scale=self.s_scale)
+            fi_ini      = gamma.rvs(size=1,a=self.fi_shape,scale=1/self.fi_scale)#uniform.rvs(size=1, loc=0, scale=100)
+            s_ini       = gamma.rvs(size=self.s_len,a=self.s_shape,scale=1/self.s_scale)
             x           = append(append(append(append(x0_1,append( m_ini_1 , w_ini1 )),r_ini),fi_ini),s_ini)
             while not self.support(x):
-                m_ini_1 = uniform.rvs(size=self.m, loc=0, scale=1)
+                m_ini_1 = gamma.rvs(size=self.m,a=self.shape_acc,scale=1./self.scale_acc) 
                 x       = append(append(append(append(x0_1,append( m_ini_1 , w_ini1 )),r_ini),fi_ini),s_ini)
         else:
             x       = append(append(x0_1,append( m_ini_1 , w_ini1 )),r_ini)
             while not self.support(x):
-                m_ini_1 = uniform.rvs(size=self.m, loc=0, scale=1)
+                m_ini_1 = gamma.rvs(size=self.m,a=self.shape_acc,scale=1./self.scale_acc) 
                 x       = append(append(x0_1,append( m_ini_1 , w_ini1 )),r_ini)
         return x
 
     def support_(self,param):
         self.var_choosing(param)
         if self.lead_data:
-            tl = log(self.paramPb[0]*self.Al)/self.lam
+            tl = log(self.paramPb[0]*self.Al) * self.one_over_lam  
             tf = self.times(self.depths[-1,1])
             s0 = tf > tl
+            #Checks that th0 is in reasonable limits
             s3 = param[0]   <   1950 - self.Sdate - .01
             s4 = param[0]   >   1950 - self.Sdate + .01
         else:
@@ -400,9 +427,9 @@ class Plum:
             s3 = param[0]   <   1950.-int(strftime("%Y"))
             s4 = False
         s1 = array(param[1:]<=0.).sum()          #Check that every parameter except Th0 are below 0
-        s2 = param[self.m+1] >=  1.                   #Checks that w is not >=1
-               #Checks that th0 is in reasonable limits
-        if s0 + s1 + s2 + s3 + s4 == 0:
+        s2 = param[self.m+1] >=  1.                   #Checks that w is not >=1         
+        s5 = any( self.alphas() < 0 )
+        if s0 + s1 + s2 + s3 + s4 +s5== 0:
             return True
         else:
             return False
@@ -410,16 +437,20 @@ class Plum:
     def support_R(self,param):
         self.var_choosing(param)
         if self.lead_data:
-            tl = log(self.paramPb[0]*self.Al)/self.lam
+            self.A_test>0
+            tl = log(self.paramPb[0]*self.Al)*self.one_over_lam  
             tf = self.times(self.depths[-1,1])
             s0 = tf > tl
+            s3 = param[0]        <   1950 - self.Sdate - .0001
+            s4 = param[0]        >   1950 - self.Sdate + .0001                  #Checks that th0 is in reasonable limits
         else:
-            s0 = False
+            s0 = False            
+            s3 = param[0]   <   1950.-int(strftime("%Y"))
+            s4 = False
         s1 = array(delete(param, [0,self.m+2])<=0.).sum()          #Check that every self.parameter except Th0 are below 0
         s2 = param[self.m+1] >=  1.                   #Checks that w is not >=1
-        s3 = param[0]        <   1950 - self.Sdate - .0001
-        s4 = param[0]        >   1950 - self.Sdate + .0001                  #Checks that th0 is in reasonable limits
-        if s0 + s1 + s2 + s3 + s4 == 0:
+        s5 = any( self.alphas() < 0 )
+        if s0 + s1 + s2 + s3 + s4 + s5 == 0:
             return True
         else:
             return False
@@ -427,17 +458,17 @@ class Plum:
     def times(self,x):
         x   = array(x)
         ms  = self.pend()
-        ys  = append(self.param[0],cumsum(ms * self.by ) + self.param[0])
-        ages= array([])
+        ys  = append(self.param[0], self.param[0] + cumsum(ms * self.by )  )
+        # ages= array([])
         ages= interp(x,self.breaks,ys)
         return ages
 
     def pendi(self):
         w       = self.param[self.m+1]
         # orginal order
-        # a       = self.param[1:self.m+1]
+        a       = self.param[1:self.m+1]
         # change for right other?
-        a = self.param[1:self.m+1][::-1]
+        # a = self.param[1:self.m+1][::-1]
         ws      = array(( w*triu(self.matrixone, k=0) + tril(self.matrixone,k=0)) - identity(self.m-1)).prod(axis=1)
         asmt    = a[:-1][::-1] * self.matrixone
         asmt    = asmt[self.rows, self.column_indices] * triu(self.matrixone, k=0)
@@ -452,21 +483,22 @@ class Plum:
     def invpendi(self):
         return self.param[1:self.m+1]
 
-    def invpendi11(self):
-        w   = self.param[self.m+1]
-        ms  = self.param[1:self.m+1]
-        a   = array([])
-        for k in nditer(range(len(ms)-1)):
-            a = append(a, (ms[k+1]+(w*ms[k]))/(1-w) )
-        a = append(a,ms[self.m-1])
-        return ms
+    # def invpendi11(self):
+    #     w   = self.param[self.m+1]
+    #     ms  = self.param[1:self.m+1]
+    #     a   = array([])
+    #     for k in nditer(range(len(ms)-1)):
+    #         a = append(a, (ms[k+1]+(w*ms[k]))/(1-w) )
+    #     a = append(a,ms[self.m-1])
+    #     return ms
 
     def invpendi1(self):
         w   = self.param[self.m+1]
         ms  = self.param[1:self.m+1]
-        alf = (ms[:-1]-w*ms[1:])/(1-w)
-        alf = append(alf,ms[-1])
-        return ms
+        alf = ( ms[:-1] - w * ms[1:] )/(1-w)
+        return append(alf,ms[-1])
+    
+    # functions for calculating the calibrated ages
 
     def incallookup(self,points,calicurv):
         if len(calicurv) ==1 :            
@@ -482,15 +514,17 @@ class Plum:
             var     =   append(var,self.cc_var[int(calicurv[k]-1)](points[k])  )
         result  =   array([mean, var])
         return result
+    
     # Prior distirbution
     def ln_prior_nonlead(self):
         # prior for memory
         logw    = log(self.param[self.m+1])
-        prior   = self.iby*(1.-self.shape1_m)*logw + (1.-self.shape2_m)*log(1.-exp(self.iby*logw) ) #+ (1.0-self.iby)*logw - self.logby
+        prior   = self.iby*(1.-self.shape1_m)*logw + (1.-self.shape2_m)*log(1.-exp(self.iby*logw) ) + (1.0-self.iby)*logw - self.logby
         # c version of this: rsc*(1.0-a)*logw + (1.0-b)*log(1.0-exp(rsc*logw)) + (1.0-rsc)*logw - logrsc
         # prior for accumulation rate
         alf     = self.alphas()
-        prior   = prior + array((1. - self.shape_acc)*log(alf)+(alf/self.scale_acc)).sum()
+        prior   = prior + array((1. - self.shape_acc)*log(alf)+(alf * self.scale_acc)).sum()
+        # c version of this: 1.0-alpha[i])*log(al) + beta[i]*al;
         # prior for r_effect
         prior   = prior +  (self.r_effect**2.)*self.r_effect_sd
         return prior
@@ -498,14 +532,14 @@ class Plum:
     def ln_prior_lead(self):
         # prior for memory
         logw    = log(self.param[self.m+1])
-        prior   = self.iby*(1. - self.shape1_m)*logw + (1. - self.shape2_m)*log(1. - exp(self.iby*logw) ) + (1.0 - self.iby)*logw - self.logby
+        prior   = self.iby * (1. - self.shape1_m)*logw + (1. - self.shape2_m)*log(1. - exp(self.iby*logw) ) + (1.0 - self.iby)*logw - self.logby
         # prior for alphas
         alf     = self.alphas()
-        prior   = prior + array((1.0 - self.shape_acc)*log(alf) + (alf/self.scale_acc)).sum()
+        prior   = prior + array( (1.0 - self.shape_acc)*log(alf) + (alf*self.scale_acc) ).sum()
         # prior for fi
-        prior   = prior + ((1. - self.fi_shape)*log(self.paramPb[0]) + (self.paramPb[0]/self.fi_shape))
+        prior   = prior + ((1. - self.fi_shape)*log(self.paramPb[0]) + (self.paramPb[0]*self.fi_scale))
         # prior for supported
-        prior   = prior + array(((1. - self.s_shape)*log(self.paramPb[1:])+(self.paramPb[1:]/self.s_scale)) ).sum()
+        prior   = prior + array(((1. - self.s_shape)*log(self.paramPb[1:])+(self.paramPb[1:]*self.s_scale)) ).sum()
         # prior for r_effect
         prior   = prior +  ((self.r_effect-self.r_effect_prior)**2.)*self.r_effect_sd
         return prior
@@ -536,20 +570,22 @@ class Plum:
     # 210Pb likelihoods
     def ln_like_data(self): #likelihood using normal distribtion
         Asup    = self.paramPb[1:] * self.density
-        tmp2    = self.paramPb[0]/self.lam
+        tmp2    = self.paramPb[0]* self.one_over_lam  
         ts      = -self.lam*( self.times(self.depths[:,1]) - self.param[0] )
         ts0     = -self.lam*( self.times(self.depths[:,0]) - self.param[0] )
-        A_i     = Asup + ( tmp2 * (exp(ts0) - exp(ts)) )
-        loglike = array( self.act[:,1]*((A_i-self.act[:,0])**2.) ).sum()
+        A_i     =  ( tmp2 * (exp(ts0) - exp(ts)) )
+        self.A_test = A_i
+        loglike = array( self.act[:,1] * (( (Asup + A_i) - self.act[:,0] )**2.) ).sum()
         return loglike
 
     def ln_like_T(self): #likelihood using T student for lead210
         # revisar creo que esa mal
         Asup    = self.paramPb[1:] * self.density
-        tmp2    = self.paramPb[0]/self.lam
+        tmp2    = self.paramPb[0] * self.one_over_lam  
         ts      = self.times(self.depths[:,1]) - self.param[0]
         ts0     = self.times(self.depths[:,0]) - self.param[0]
         A_i     = Asup + tmp2 * (exp(-self.lam*ts0) - exp(-self.lam*ts))
+        self.A_test = A_i
         loglike = array(3.5 * log(4. + self.act[:,1] * ((A_i-self.act[:,0])**2.)) ).sum()
         return loglike
 
@@ -583,7 +619,8 @@ class Plum:
         u       = exp( -((dat[0]-inc[0,])**2.)/((2.*sigm))  )* (sigm**-2)
         return u
 
-    def PlumPlot(self):
+    def PlumPlot(self,add_name = ''):
+        print('Plotting the results')
         # Set up the axes with gridspec
         if self.lead_data:
             fig         = figure(figsize=(10, 10))
@@ -602,12 +639,21 @@ class Plum:
             Memory      = fig.add_subplot(grid[0:2,4: ], yticklabels=[])
         # Generate chronology
         yrs_it = zeros((1,len(self.breaks)))
+
+        self.A_i = zeros(len(self.times(self.depths[:,1])))
         for param in self.Output[1:,:-1]:
             self.var_choosing(param)
-            ms      = self.pend()
+            # ms      = self.pend()
             ys      = self.times(self.breaks)#append(param[0],cumsum(ms * self.by ) + param[0])
-            plt     = Chronology.plot(self.breaks,ys, color='black',alpha = .02)
+            Chronology.plot(self.breaks,ys, color='black',alpha = .02)
             yrs_it  = r_[yrs_it,[ys] ]
+            Asup    = self.paramPb[1:] 
+            tmp2    = self.paramPb[0] * self.one_over_lam  
+            ts      = -self.lam*( self.times(self.depths[:,1]) - self.param[0] )
+            ts0     = -self.lam*( self.times(self.depths[:,0]) - self.param[0] )
+            self.A_i   = vstack([self.A_i, Asup + (tmp2 * (exp(ts0) - exp(ts)))/self.density ] )
+        self.A_i = self.A_i[1:,:]
+            
         yrs_it      = sort(yrs_it[1:,:],axis=0)
         self.ages   =   yrs_it
         # mean and interval
@@ -679,8 +725,8 @@ class Plum:
         Chronology.set_ylabel('yr BP')
         Chronology.set_ylim([yrs_it.flatten().min()-5,array(yrs_it[int((1-self.intv)*self.iterations)]).max()+30])
         Chronology.set_xlim([-self.by/12,self.breaks.max()+self.by/12])
-        Chronology.set_title(self.Core)
-        string_vals = "{}".format(self.Core)
+        Chronology.set_title(self.Core + add_name)
+        string_vals = "{}".format(self.Core + add_name)
         Chronology.text(.05,.95, string_vals,transform = Chronology.transAxes,size = 20 )
 
         # Energy Plot
@@ -702,7 +748,7 @@ class Plum:
         Acrate.set_title('Acc. Rate',size=11)
         kr_ac       = gaussian_kde(dataset=self.Outputplt[1:,1:-2].flatten())
         x           = linspace(min(self.Outputplt[1:,1:-2].flatten()),max(self.Outputplt[1:,1:-2].flatten()),300)
-        pr_acc      = gamma.pdf(x, a=self.shape_acc,scale=self.scale_acc )
+        pr_acc      = gamma.pdf(x, a=self.shape_acc,scale=1./self.scale_acc )
         string_vals = "mean {}\nshape {}\nm {}".format(self.mean_acc,self.shape_acc,self.m)
         Acrate.plot(x, kr_ac.evaluate(x),linestyle='solid', c='gray', lw=1,alpha=.8)
         Acrate.plot(x, pr_acc,linestyle='solid', c='blue', lw=1,alpha=.8)
@@ -715,7 +761,7 @@ class Plum:
             fi.set_title('210Pb Infux',size=11)
             kr_fi       = gaussian_kde(dataset=self.outplum[1:,0].flatten())
             x           = linspace(min(self.outplum[1:,0].flatten()),max(self.outplum[1:,0].flatten()),300)
-            pr_fi       = gamma.pdf(x, a=self.fi_shape,scale=self.fi_scale )
+            pr_fi       = gamma.pdf(x, a=self.fi_shape,scale=1/self.fi_scale )
             string_vals = "mean {}\nshape {}\n".format(self.fi_mean,self.fi_shape)
             fi.plot(x, kr_fi.evaluate(x),linestyle='solid', c='gray', lw=1,alpha=.8)
             fi.plot(x, pr_fi,linestyle='solid', c='blue', lw=1,alpha=.8)
@@ -724,7 +770,7 @@ class Plum:
             # Supp
 
             x           = linspace(min(self.outplum[1:,1:-1].flatten()),max(self.outplum[1:,1:-1].flatten()),300)
-            pr_supp     = gamma.pdf(x, a=self.s_shape,scale=self.s_scale )
+            pr_supp     = gamma.pdf(x, a=self.s_shape,scale=1/self.s_scale )
             string_vals = "mean {}\nshape {}\n".format(self.s_mean,self.s_shape)
 
             if self.s_len == 1:
@@ -732,7 +778,7 @@ class Plum:
                 kr_supp     = gaussian_kde(dataset=self.outplum[1:,1:-1].flatten())
                 supp.plot(x, kr_supp.evaluate(x),linestyle='solid', c='gray', lw=1,alpha=.8)
                 supp.plot(x, pr_supp,linestyle='solid', c='blue', lw=1,alpha=.8)
-                supp.set_xlim([min(self.outplum[1:,1:-1].flatten()),max(self.outplum[1:,1:-1].flatten())])
+                supp.set_xlim([min(self.outplum[1:,1:-1].flatten()),1.3*max(self.outplum[1:,1:-1].flatten())])
                 #plotdata
                 pltdata     = Chronology.twinx()
                 for k in range(len(self.Data[:,1])):
@@ -742,19 +788,41 @@ class Plum:
                         color   =   'red'
                     else:
                         color   =   'blue'
-                    pltdata.plot(x,y , c=color,alpha=.3)
+                    pltdata.plot(x,y , c=color,alpha=.5)
+                    for k1 in range(len(self.outplum[1:, 1:-1])):
+                        y_value = self.outplum[k1+1, k+1]  # Assuming 1D array; if 2D, you'll have to loop through columns
+                        x_min = self.depths[k, 0]
+                        x_max = self.depths[k, 1]
+                        pltdata.hlines(y=y_value, xmin=x_min+.09, xmax=x_max-.09, colors='red', alpha=.02)    
+                        pltdata.hlines(y=self.A_i[k1,k], xmin=x_min+.09, xmax=x_max-.09, colors='blue', alpha=.02)
             else:
                 supp        = fig.add_subplot(grid[0:2,8: ])
-                supp.boxplot(self.outplum[1:,1:-1],labels=self.depths[:,1],showfliers=False,vert=False )
+                # plot the posterior samples
+                supp.boxplot(self.outplum[1:,1:-1],positions=self.depths[:, 1],labels=self.depths[:,1],showfliers=False,vert=False )
+                # plot the prior 
                 supp.plot(x,pr_supp/max(pr_supp),linestyle='solid', c='blue', lw=1,alpha=.5)
+                # plot the data
+                supp.errorbar(self.Data[:, 5], self.depths[:,1] , xerr=self.Data[:, 6], fmt='o', color='red', alpha=0.4)
+                # change the limit
+                supp.set_xlim([min(self.outplum[1:,1:-1].flatten()),1.45*max(self.outplum[1:,1:-1].flatten())])
+                # Reduce the size of x-axis labels
+                supp.tick_params(axis='y', labelsize=6)
+                # this plots the supported data in the main plot
                 pltdata     = Chronology.twinx()
                 for k in range(len(self.Data[:,1])):
                     y   =   array([self.Data[k,2]-2*self.Data[k,3],self.Data[k,2]-2*self.Data[k,3],self.Data[k,2]+2*self.Data[k,3],self.Data[k,2]+2*self.Data[k,3],self.Data[k,2]-2*self.Data[k,3]]).flatten()
                     x   =   array([self.depths[k,0],self.depths[k,1],self.depths[k,1],self.depths[k,0],self.depths[k,0]])
-                    pltdata.plot(x,y , c='blue',alpha=.3)
+                    pltdata.plot(x,y , c='blue',alpha=.5)
                     y   =   array([self.Data[k,5]-2*self.Data[k,6],self.Data[k,5]-2*self.Data[k,6],self.Data[k,5]+2*self.Data[k,6],self.Data[k,5]+2*self.Data[k,6],self.Data[k,5]-2*self.Data[k,6]]).flatten()
                     x   =   array([self.depths[k,0],self.depths[k,1],self.depths[k,1],self.depths[k,0],self.depths[k,0]])
-                    pltdata.plot(x,y , c='red',alpha=.3)
+                    pltdata.plot(x,y , c='red',alpha=.5)
+                    # plot the output
+                    y_value = self.outplum[1:, k+1]  # Assuming 1D array; if 2D, you'll have to loop through columns
+                    x_min = self.depths[k, 0]
+                    x_max = self.depths[k, 1]
+                    pltdata.hlines(y=y_value, xmin=x_min+.09, xmax=x_max-.09, colors='red', alpha=.02)    # Choose the color and transparency as you like
+                    pltdata.hlines(y=self.A_i[:,k], xmin=x_min+.09, xmax=x_max-.09, colors='blue', alpha=.02)
+                
                     #supp.tick_params(axis="x", labelsize=5)
             pltdata.set_ylabel('210Pb data', color='b')
             supp.set_title('Supp 210Pb',size=11)
@@ -767,43 +835,45 @@ class Plum:
             reserv.set_title('Reservoir effect',size=11)
             reserv.plot(x, kr_r.evaluate(x),linestyle='solid', c='gray', lw=1,alpha=.8)
         #saving plot
-        savefig(self.hfol + self.dirt + '/' + self.Core + '/' + self.pdfname,bbox_inches = 'tight')
+        savefig(self.hfol + self.dirt + '/' + self.Core + '/'  + add_name +self.pdfname,bbox_inches = 'tight')
         if self.showchrono:
             show(fig)
         #plot the reservoir effect if chossen
-    def generate_age_file(self):
+    def generate_age_file(self,add_name= ''):
         depths      = array(arange(self.breaks[0],self.breaks[-1],self.d_by) )
         low         = interp(depths,self.breaks,quantile(self.ages,self.intv,axis=0))
         hig         = interp(depths,self.breaks,quantile(self.ages,1-self.intv,axis=0))
         mean1       = interp(depths,self.breaks,mean(self.ages,axis=0))
         median1     = interp(depths,self.breaks,median(self.ages,axis=0))
         ages        = array([depths,low ,hig,mean1,median1])
-        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "ages_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + add_name + "ages_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
         simu        = row_stack((self.breaks,self.ages))
-        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + "Simulaltions_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), simu.T, delimiter=',',fmt='%1.3f')
+        savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + add_name + "Simulaltions_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), simu.T, delimiter=',',fmt='%1.3f')
 
-
+    def set_ini(self):
+        if self.reservoir_eff:
+            x,xp           = self.ini_points_R() , self.ini_points_R()
+        else:
+            x,xp           = self.ini_points() , self.ini_points()
+        return x, xp
 
 
     def runPlum(self):
         # set seed for replication
         seed(self.seeds)
         # set initial points
-        if self.reservoir_eff:
-            x,xp           = self.ini_points_R() , self.ini_points_R()
-        else:
-            x,xp           = self.ini_points() , self.ini_points()
+        x, xp = self.set_ini()
         print('Total iterations are {}'.format(self.thi * self.iterations + self.burnin))
-        total_iterations = self.thi * self.iterations + self.burnin
         U, Up          = self.obj(x), self.obj(xp)
         twalkrun     = pytwalk.pytwalk(n=len(x), U=self.obj, Supp=self.support)#,ww=[ 0.0, 0.4918, 0.4918, 0.0082+0.082, 0.0])   #
-        # twalkrun.Run(T=total_iterations, x0=x, xp0=xp, k=self.thi)
+        # total_iterations = self.thi * self.iterations + self.burnin
+        # twalkrun.Run(T=total_iterations, x0=x, xp0=xp, thi=self.thi)
         i, k, k0, n    = 0, 0, 0, len(x)
         Output         = zeros((self.iterations+1, n+1))
         Output[0, 0:n] = x.copy()
         Output[0, n]   = U
         # Here we start the while
-        pbar = tqdm(total = self.iterations+1)
+        pbar = tqdm(total = self.iterations)
         while i < self.iterations:
             onemove = twalkrun.onemove(x, U, xp, Up)
             k += 1
@@ -829,9 +899,14 @@ class Plum:
                     pbar.update(1)
         pbar.close()
         # end of while
-        Output = twalkrun.Output[-self.iterations:, :]
+        # Output = twalkrun.Output[-self.iterations:, :]
         # save inicial points added 26/04/2023
-        initial_poitns = [twalkrun.x, twalkrun.xp]
+        # initial_poitns = [twalkrun.x, twalkrun.xp]
+        print('\n')
+        print('saving Output and state points\n')
+        initial_poitns = [x, xp]
+        self.x_last = x
+        self.xp_last = xp
         # save out file
         Core_name   =   "{}_{}".format(self.Core, self.m)
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "initial_poitns.csv", initial_poitns, delimiter=',')
@@ -850,9 +925,12 @@ class Plum:
                 self.outplum    = Output[:,self.m+2:]
                 savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + Core_name + "_Plum.out", self.outplum[:,:-1], delimiter=',',fmt='%1.3f')
         #generate and save plot
-        self.PlumPlot()
-        #Save interval file
-        self.generate_age_file()
+        if self.plotresults:
+            print('Plotting results')
+            self.PlumPlot()
+            #Save interval file
+            self.generate_age_file()
+
     
 
     def load_old_run(self):
