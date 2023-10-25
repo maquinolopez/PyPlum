@@ -437,7 +437,6 @@ class Plum:
     def support_R(self,param):
         self.var_choosing(param)
         if self.lead_data:
-            self.A_test>0
             tl = log(self.paramPb[0]*self.Al)*self.one_over_lam  
             tf = self.times(self.depths[-1,1])
             s0 = tf > tl
@@ -573,9 +572,9 @@ class Plum:
         tmp2    = self.paramPb[0]* self.one_over_lam  
         ts      = -self.lam*( self.times(self.depths[:,1]) - self.param[0] )
         ts0     = -self.lam*( self.times(self.depths[:,0]) - self.param[0] )
-        A_i     =  ( tmp2 * (exp(ts0) - exp(ts)) )
-        self.A_test = A_i
-        loglike = array( self.act[:,1] * (( (Asup + A_i) - self.act[:,0] )**2.) ).sum()
+        A_i     =  Asup +( tmp2 * (exp(ts0) - exp(ts)) )
+        # self.A_test = A_i
+        loglike = array( self.act[:,1] * ((  A_i - self.act[:,0] )**2.) ).sum()
         return loglike
 
     def ln_like_T(self): #likelihood using T student for lead210
@@ -585,7 +584,7 @@ class Plum:
         ts      = self.times(self.depths[:,1]) - self.param[0]
         ts0     = self.times(self.depths[:,0]) - self.param[0]
         A_i     = Asup + tmp2 * (exp(-self.lam*ts0) - exp(-self.lam*ts))
-        self.A_test = A_i
+        # self.A_test = A_i
         loglike = array(3.5 * log(4. + self.act[:,1] * ((A_i-self.act[:,0])**2.)) ).sum()
         return loglike
 
@@ -781,7 +780,7 @@ class Plum:
                 supp.set_xlim([min(self.outplum[1:,1:-1].flatten()),1.3*max(self.outplum[1:,1:-1].flatten())])
                 #plotdata
                 pltdata     = Chronology.twinx()
-                for k in range(len(self.Data[:,1])):
+                for k in range(len(self.depths[:,1])):
                     y   =   array([self.Data[k,2]-2*self.Data[k,3],self.Data[k,2]-2*self.Data[k,3],self.Data[k,2]+2*self.Data[k,3],self.Data[k,2]+2*self.Data[k,3],self.Data[k,2]-2*self.Data[k,3]]).flatten()
                     x   =   array([self.Data[k,0],self.Data[k,0]-self.Data[k,4],self.Data[k,0]-self.Data[k,4],self.Data[k,0],self.Data[k,0]])
                     if k >= len(self.Data[:,0])-len(self.supp[:,0]):
@@ -790,10 +789,10 @@ class Plum:
                         color   =   'blue'
                     pltdata.plot(x,y , c=color,alpha=.5)
                     for k1 in range(len(self.outplum[1:, 1:-1])):
-                        y_value = self.outplum[k1+1, k+1]  # Assuming 1D array; if 2D, you'll have to loop through columns
+                        y_value = self.outplum[k1+1, 1] 
                         x_min = self.depths[k, 0]
                         x_max = self.depths[k, 1]
-                        pltdata.hlines(y=y_value, xmin=x_min+.09, xmax=x_max-.09, colors='red', alpha=.02)    
+                        pltdata.hlines(y=y_value, xmin=x_min+.09, xmax=x_max-.09, colors='red', alpha=.002)    
                         pltdata.hlines(y=self.A_i[k1,k], xmin=x_min+.09, xmax=x_max-.09, colors='blue', alpha=.02)
             else:
                 supp        = fig.add_subplot(grid[0:2,8: ])
