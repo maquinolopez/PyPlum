@@ -379,7 +379,7 @@ class Plum:
                     w_ini1      = beta.rvs(size=1,a=self.shape1_m,b=self.shape2_m) 
                 x       = append(append(append(x0_1,append( m_ini_1 , w_ini1 )),fi_ini),s_ini)     
         else:
-            x           = append(x0_1,append( m_ini_1 , w_ini1 ))
+            x           = append(x0_1,append( ms_ini_1 , w_ini1 ))
             while not self.support(x):
                 m_ini_1 = uniform.rvs(size=self.m, loc=0, scale=1)
                 if not(self.tparam):
