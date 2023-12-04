@@ -88,9 +88,34 @@ PyPlum will automatically detect the presence of `Core_name-C.csv` and adjust th
 
 The following settings can be adjusted in PyPlum:
 
-- **Core:** Core name
-- **dirt:** Core folder location
-- ...
+- **Core:**  Core name
+- **dirt:**  Core folder location
+- **Dircc:**  Calibration curve folder
+- **thick:**  length of the autoregressive gamma process sections
+- **n_supp:**  Number samples to be used exclusively for inferring  supported 210Pb
+- **mean_m:**  Prior mean of memory parameter (used by the autoregressive gamma process)
+- **shape_m:**  Prior shape of memory parameter (used by the autoregressive gamma process)
+- **mean_acc:** Prior mean of alpha parameters (used by the autoregressive gamma process)
+- **shape_acc:** Prior shape of alpha parameters (used by the autoregressive gamma process)
+- **fi_mean:**  Prior mean of prior 210Pb influx
+- **fi_shape:**  Prior shape of 210Pb influx
+- **s_mean:**		Prior mean of supported 210Pb
+- **s_shape:**	Prior shape of supported 210Pb
+- **intv:**			Length of credible interval
+- **Ts_mod:**		If _True_ radiocarbon likelihood will be constructed using the T model, if _False_ the normal model will be used
+- **iterations:** Bumber of final MCMC iteration
+- **burnin:**		Size of burn-in  
+- **thi:**			Thinning of the MCMC
+- **cc:**				Calibration Curve (name of file containing the calibration curve)
+- **ccpb:**			Postbomb Calibration curve
+- **showchrono:** If _True_ the chronology will be display after the running the model, if _False_ chronology will not be display. In both cases chronology will be save as a _pdf_ file
+- **g_thi:**  Size of radiocarbon globes in plot
+- **Al:**			Detection limit, this variable limits the chronology (_see: Aquino-López et al. 2018 for details)_
+- **seed:**  Seed for the random variables (used to replicate results). If not changed random seed will be used.
+- **d_by:**  Length of sections used to create age file.
+- **reservoir_eff:** Assumes a constant reservoir effect in all radiocarbon dates and it calculates it as a parameter of the model.
+
+
 
 For a detailed explanation of each setting, refer to the documentation.
 
