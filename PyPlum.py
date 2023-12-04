@@ -629,6 +629,7 @@ class Plum:
             Acrate      = fig.add_subplot(grid[0:2,2:4], yticklabels=[])
             Memory      = fig.add_subplot(grid[0:2,4:6 ], yticklabels=[])
             fi          = fig.add_subplot(grid[0:2,6:8 ], yticklabels=[])
+            
         else:
             fig         = figure(figsize=(6, 6))
             grid        = GridSpec(6, 6, hspace=1.1, wspace=1.1)
@@ -637,21 +638,25 @@ class Plum:
             Acrate      = fig.add_subplot(grid[0:2,2:4], yticklabels=[])
             Memory      = fig.add_subplot(grid[0:2,4: ], yticklabels=[])
         # Generate chronology
+        if self.lead_data:
+            self.A_i = zeros(len(self.times(self.depths[:,1])))
+            
         yrs_it = zeros((1,len(self.breaks)))
-
-        self.A_i = zeros(len(self.times(self.depths[:,1])))
+        
+        
         for param in self.Output[1:,:-1]:
             self.var_choosing(param)
             # ms      = self.pend()
             ys      = self.times(self.breaks)#append(param[0],cumsum(ms * self.by ) + param[0])
             Chronology.plot(self.breaks,ys, color='black',alpha = .02)
             yrs_it  = r_[yrs_it,[ys] ]
-            Asup    = self.paramPb[1:] 
-            tmp2    = self.paramPb[0] * self.one_over_lam  
-            ts      = -self.lam*( self.times(self.depths[:,1]) - self.param[0] )
-            ts0     = -self.lam*( self.times(self.depths[:,0]) - self.param[0] )
-            self.A_i   = vstack([self.A_i, Asup + (tmp2 * (exp(ts0) - exp(ts)))/self.density ] )
-        self.A_i = self.A_i[1:,:]
+            if self.lead_data:
+                Asup    = self.paramPb[1:] 
+                tmp2    = self.paramPb[0] * self.one_over_lam  
+                ts      = -self.lam*( self.times(self.depths[:,1]) - self.param[0] )
+                ts0     = -self.lam*( self.times(self.depths[:,0]) - self.param[0] )
+                self.A_i   = vstack([self.A_i, Asup + (tmp2 * (exp(ts0) - exp(ts)))/self.density ] )
+                # self.A_i = self.A_i[1:,:]
             
         yrs_it      = sort(yrs_it[1:,:],axis=0)
         self.ages   =   yrs_it
@@ -845,6 +850,7 @@ class Plum:
         mean1       = interp(depths,self.breaks,mean(self.ages,axis=0))
         median1     = interp(depths,self.breaks,median(self.ages,axis=0))
         ages        = array([depths,low ,hig,mean1,median1])
+        self.summary_ages = ages
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + add_name + "ages_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), ages.T, delimiter=',',fmt='%1.3f',header="depth,min,max,mean,median")
         simu        = row_stack((self.breaks,self.ages))
         savetxt(self.hfol + self.dirt + '/' + self.Core + '/' + add_name + "Simulaltions_{}_{}_{}.txt".format(self.Core, self.m,self.d_by), simu.T, delimiter=',',fmt='%1.3f')

@@ -73,7 +73,7 @@ To load the package use:
 
 Loading data and preparing for analysis:
 
-		Core_name = PyPlum.PyPlum('Core_name')
+		Core_name = PyPlum.Plum('Core_name')
 
 This will load the data and set everything for plum to run. It will display the data that _PyPlum_ will use and also
 
