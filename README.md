@@ -26,6 +26,7 @@ To use PyPlum, ensure you have the following installed:
 Core data should be stored in a **csv** format as follows:
 
 |  ID  | Depth |   Density   | Total 210Pb | SD Total 210Pb | Thickness | Total 226Ra |  SD Total 226Ra | Info |
+| :--- | :---- | :---------- | :---------- | :------------- | :-------- | :---------- | :-------------- | :--- |
 
 - **ID:**             
 	Sample's ID
@@ -51,6 +52,7 @@ Ensure the core data file (`Core_name.csv`) is placed in a dedicated Core folder
 For radiocarbon or calendar data, add a `Core_name-C.csv` file with the format:
 
 |  ID  | BP Age | Age error | Depth |  cc  |
+| :--- | :----- | :-------- | :---- | :--- |
 
 - **ID:**         
 	Sample's ID
@@ -116,8 +118,6 @@ The following settings can be adjusted in PyPlum:
 - **reservoir_eff:** Assumes a constant reservoir effect in all radiocarbon dates and it calculates it as a parameter of the model.
 
 
-
-For a detailed explanation of each setting, refer to the documentation.
 
 ## rplum, R's Official Version
 
